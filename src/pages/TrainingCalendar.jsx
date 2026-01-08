@@ -2,37 +2,70 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { Calendar as CalendarIcon, Clock, MapPin, User, ChevronLeft, ChevronRight } from 'lucide-react'
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from 'date-fns'
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths } from 'date-fns'
 
 function TrainingCalendar() {
-  const { profile } = useAuth()
+  const { profile, isTrainer } = useAuth()
   const [sessions, setSessions] = useState([])
   const [loading, setLoading] = useState(true)
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState(new Date())
 
   useEffect(() => {
-    fetchSessions()
-  }, [currentMonth])
+    if (profile) {
+      fetchSessions()
+    }
+  }, [currentMonth, profile])
 
   const fetchSessions = async () => {
     try {
       const start = startOfMonth(currentMonth)
       const end = endOfMonth(currentMonth)
 
-      const { data, error } = await supabase
-        .from('training_sessions')
-        .select(`
-          *,
-          trainings (title, category, duration_minutes),
-          profiles:trainer_id (full_name)
-        `)
-        .gte('session_date', format(start, 'yyyy-MM-dd'))
-        .lte('session_date', format(end, 'yyyy-MM-dd'))
-        .order('session_date', { ascending: true })
+      if (isTrainer) {
+        // Trainers see sessions they created
+        const { data, error } = await supabase
+          .from('training_sessions')
+          .select('*')
+          .eq('trainer_id', profile.id)
+          .gte('session_date', format(start, 'yyyy-MM-dd'))
+          .lte('session_date', format(end, 'yyyy-MM-dd'))
+          .order('session_date', { ascending: true })
 
-      if (error) throw error
-      setSessions(data || [])
+        if (error) throw error
+        setSessions(data || [])
+      } else {
+        // Learners see sessions they are enrolled in
+        const { data: enrollments, error } = await supabase
+          .from('session_enrollments')
+          .select(`
+            session_id,
+            training_sessions (
+              id,
+              topic,
+              audience,
+              session_date,
+              start_time,
+              end_time,
+              location,
+              status
+            )
+          `)
+          .eq('learner_email', profile.email)
+
+        if (error) throw error
+
+        // Filter for this month and flatten
+        const filteredSessions = enrollments
+          ?.map(e => e.training_sessions)
+          ?.filter(s => {
+            if (!s) return false
+            const sessionDate = new Date(s.session_date)
+            return sessionDate >= start && sessionDate <= end
+          }) || []
+
+        setSessions(filteredSessions)
+      }
     } catch (error) {
       console.error('Error fetching sessions:', error)
     } finally {
@@ -51,15 +84,22 @@ function TrainingCalendar() {
 
   const selectedSessions = getSessionsForDate(selectedDate)
 
-  const getCategoryColor = (category) => {
-    const colors = {
-      claims: 'bg-blue-500',
-      enrollment: 'bg-emerald-500',
-      provider_data: 'bg-amber-500',
-      hrp_system: 'bg-purple-500',
-      general: 'bg-slate-500',
+  const getTopicLabel = (topic) => {
+    const topics = {
+      hrp_navigation: 'HRP Navigation',
+      hr_answers_standard: 'HR Answers Standard',
+      hr_answers_adhoc: 'HR Answers Adhoc',
+      dlp_role_specific: 'DLP-Role Specific',
+      learninglab: 'LearningLab',
+      refresher: 'Refresher',
     }
-    return colors[category] || 'bg-slate-500'
+    return topics[topic] || topic || 'Training Session'
+  }
+
+  const getAudienceColor = (audience) => {
+    if (audience === 'internal') return 'bg-blue-500'
+    if (audience === 'external') return 'bg-emerald-500'
+    return 'bg-slate-500'
   }
 
   return (
@@ -70,7 +110,9 @@ function TrainingCalendar() {
           Training Calendar
         </h1>
         <p className="text-slate-500">
-          View and enroll in upcoming training sessions
+          {isTrainer 
+            ? 'View your scheduled training sessions' 
+            : 'View training sessions you are enrolled in'}
         </p>
       </div>
 
@@ -145,7 +187,7 @@ function TrainingCalendar() {
                       {daySessions.slice(0, 3).map((session, i) => (
                         <div
                           key={i}
-                          className={`w-1.5 h-1.5 rounded-full ${getCategoryColor(session.trainings?.category)}`}
+                          className={`w-1.5 h-1.5 rounded-full ${getAudienceColor(session.audience)}`}
                         />
                       ))}
                     </div>
@@ -157,17 +199,14 @@ function TrainingCalendar() {
 
           {/* Legend */}
           <div className="flex flex-wrap gap-4 mt-6 pt-6 border-t border-slate-100">
-            {[
-              { color: 'bg-blue-500', label: 'Claims' },
-              { color: 'bg-emerald-500', label: 'Enrollment' },
-              { color: 'bg-amber-500', label: 'Provider Data' },
-              { color: 'bg-purple-500', label: 'HRP System' },
-            ].map(item => (
-              <div key={item.label} className="flex items-center gap-2">
-                <div className={`w-3 h-3 rounded-full ${item.color}`} />
-                <span className="text-sm text-slate-600">{item.label}</span>
-              </div>
-            ))}
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-blue-500" />
+              <span className="text-sm text-slate-600">Internal</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-emerald-500" />
+              <span className="text-sm text-slate-600">External</span>
+            </div>
           </div>
         </div>
 
@@ -190,9 +229,9 @@ function TrainingCalendar() {
                   key={session.id}
                   className="p-4 rounded-xl border border-slate-200 hover:border-brand-200 transition-colors"
                 >
-                  <div className={`w-2 h-2 rounded-full ${getCategoryColor(session.trainings?.category)} mb-2`} />
+                  <div className={`w-2 h-2 rounded-full ${getAudienceColor(session.audience)} mb-2`} />
                   <h4 className="font-medium text-slate-800 mb-2">
-                    {session.trainings?.title}
+                    {getTopicLabel(session.topic)}
                   </h4>
                   <div className="space-y-1 text-sm text-slate-500">
                     <div className="flex items-center gap-2">
@@ -205,14 +244,7 @@ function TrainingCalendar() {
                         {session.location}
                       </div>
                     )}
-                    <div className="flex items-center gap-2">
-                      <User className="w-4 h-4" />
-                      {session.profiles?.full_name || 'TBD'}
-                    </div>
                   </div>
-                  <button className="btn-primary w-full mt-4 text-sm py-2">
-                    Enroll
-                  </button>
                 </div>
               ))}
             </div>
