@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
-import { Users, Search, Mail, Award, BookOpen, ArrowLeft } from 'lucide-react'
+import { Users, Search, Mail, ArrowLeft } from 'lucide-react'
 import { format } from 'date-fns'
 import { Link } from 'react-router-dom'
 
@@ -24,7 +24,6 @@ function AdminLearners() {
 
       if (error) throw error
 
-      // Fetch stats for each learner
       const learnersWithStats = await Promise.all(
         (data || []).map(async (learner) => {
           const { count: enrollmentCount } = await supabase
@@ -78,7 +77,6 @@ function AdminLearners() {
         </div>
       </div>
 
-      {/* Search */}
       <div className="card p-4 mb-6">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
@@ -92,7 +90,6 @@ function AdminLearners() {
         </div>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-3 gap-4 mb-6">
         <div className="card p-4 text-center">
           <p className="text-2xl font-bold text-slate-800">{learners.length}</p>
@@ -112,7 +109,6 @@ function AdminLearners() {
         </div>
       </div>
 
-      {/* Learners List */}
       <div className="card">
         <div className="p-5 border-b border-slate-200">
           <h2 className="font-display font-semibold text-slate-800">
