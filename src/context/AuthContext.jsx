@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 const AuthContext = createContext({})
@@ -62,15 +62,12 @@ export function AuthProvider({ children }) {
     return { data, error }
   }
 
-  const signUp = async (email, password, fullName, role = 'learner') => {
+  const signUp = async (email, password, metadata = {}) => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: {
-          full_name: fullName,
-          role: role,
-        },
+        data: metadata,
       },
     })
     return { data, error }
@@ -92,7 +89,8 @@ export function AuthProvider({ children }) {
     signIn,
     signUp,
     signOut,
-    isTrainer: profile?.role === 'trainer',
+    isTrainer: profile?.role === 'trainer' || profile?.role === 'manager',
+    isManager: profile?.role === 'manager',
     isLearner: profile?.role === 'learner',
     isAdmin: profile?.role === 'admin',
   }
