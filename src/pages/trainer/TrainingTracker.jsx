@@ -7,7 +7,7 @@ import {
   Lock, Globe, ArrowLeft, CheckCircle2, XCircle,
   Edit, AlertTriangle, TrendingUp, Save
 } from 'lucide-react'
-import { format, parseISO, eachDayOfInterval, isBefore, isToday, startOfWeek, endOfWeek } from 'date-fns'
+import { format, parseISO, eachDayOfInterval, isBefore, isToday, startOfWeek } from 'date-fns'
 
 const TOPICS = [
   { id: 'hrp_navigation', label: 'HRP Navigation' },
@@ -22,12 +22,14 @@ const AUDIENCES = [
   { id: 'internal', label: 'Internal' },
   { id: 'external', label: 'External' },
 ]
+
 const CLIENTS = [
   { id: 'ibx', label: 'IBX' },
   { id: 'hwc', label: 'HWC' },
   { id: 'az_blue', label: 'AZ Blue' },
   { id: 'clover', label: 'Clover' },
 ]
+
 const formatTime = (timeStr) => {
   if (!timeStr) return 'TBD'
   const [hours, minutes] = timeStr.split(':')
@@ -193,6 +195,7 @@ function TrainingTracker() {
                       </div>
                       <div className="flex flex-wrap items-center gap-2 text-sm">
                         <span className="badge badge-blue">{getAudienceLabel(session.audience)}</span>
+                        <span className="badge badge-slate">{getClientLabel(session.client)}</span>
                         <span className="text-slate-500 flex items-center gap-1">
                           <Calendar className="w-4 h-4" />
                           {format(startDate, 'MMM d, yyyy')}{isMultiDay && ` - ${format(endDate, 'MMM d, yyyy')}`}
@@ -321,7 +324,6 @@ function ScheduleModal({ profile, onClose, onSuccess }) {
             </div>
           </div>
           
-          {/* Progress Tracking Toggle */}
           <div className="bg-purple-50 rounded-xl p-4">
             <label className="flex items-start gap-3 cursor-pointer">
               <input
@@ -339,7 +341,6 @@ function ScheduleModal({ profile, onClose, onSuccess }) {
             </label>
           </div>
 
-          {/* Notes */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Notes</label>
             <textarea 
@@ -541,8 +542,9 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
               <h1 className="font-display text-2xl font-bold text-slate-800">{getTopicLabel(sessionData.topic)}</h1>
               {sessionData.progress_tracking_enabled && <span className="badge badge-purple">Progress Tracking</span>}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="badge badge-blue">{getAudienceLabel(sessionData.audience)}</span>
+              <span className="badge badge-slate">{getClientLabel(sessionData.client)}</span>
               <span className={`badge ${sessionData.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'badge-amber'}`}>{sessionData.status || 'scheduled'}</span>
             </div>
           </div>
@@ -553,18 +555,19 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
             </div>
           )}
         </div>
-<div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-  <div><p className="text-slate-500 mb-1">Date</p><p className="font-medium text-slate-800">{format(startDate, 'MMM d, yyyy')}{isMultiDay && ` - ${format(endDate, 'MMM d, yyyy')}`}</p></div>
-  <div><p className="text-slate-500 mb-1">Time</p><p className="font-medium text-slate-800">{formatTime(sessionData.start_time)} - {formatTime(sessionData.end_time)}</p></div>
-  <div><p className="text-slate-500 mb-1">Client</p><p className="font-medium text-slate-800">{getClientLabel(sessionData.client)}</p></div>
-  <div><p className="text-slate-500 mb-1">Enrolled</p><p className="font-medium text-slate-800">{learners.length} learners</p></div>
-</div>
-{sessionData.notes && (
-  <div className="mt-4 pt-4 border-t border-slate-100">
-    <p className="text-slate-500 text-sm mb-1">Notes</p>
-    <p className="text-slate-700 whitespace-pre-wrap">{sessionData.notes}</p>
-  </div>
-)}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+          <div><p className="text-slate-500 mb-1">Date</p><p className="font-medium text-slate-800">{format(startDate, 'MMM d, yyyy')}{isMultiDay && ` - ${format(endDate, 'MMM d, yyyy')}`}</p></div>
+          <div><p className="text-slate-500 mb-1">Time</p><p className="font-medium text-slate-800">{formatTime(sessionData.start_time)} - {formatTime(sessionData.end_time)}</p></div>
+          <div><p className="text-slate-500 mb-1">Client</p><p className="font-medium text-slate-800">{getClientLabel(sessionData.client)}</p></div>
+          <div><p className="text-slate-500 mb-1">Enrolled</p><p className="font-medium text-slate-800">{learners.length} learners</p></div>
+        </div>
+        {sessionData.notes && (
+          <div className="mt-4 pt-4 border-t border-slate-100">
+            <p className="text-slate-500 text-sm mb-1">Notes</p>
+            <p className="text-slate-700 whitespace-pre-wrap">{sessionData.notes}</p>
+          </div>
+        )}
+      </div>
 
       <div className="flex gap-2 mb-6 overflow-x-auto">
         <button onClick={() => setActiveTab('learners')} className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap ${activeTab === 'learners' ? 'bg-brand-100 text-brand-700' : 'text-slate-600 hover:bg-slate-100'}`}>Learners ({learners.length})</button>
@@ -583,7 +586,6 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
         <div className="card p-6"><div className="h-32 bg-slate-100 rounded-xl animate-pulse" /></div>
       ) : (
         <>
-          {/* LEARNERS TAB */}
           {activeTab === 'learners' && (
             <div className="card p-6">
               {!isCancelled && (
@@ -647,7 +649,6 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
             </div>
           )}
 
-          {/* ATTENDANCE TAB */}
           {activeTab === 'attendance' && (
             <div className="card p-6">
               <h2 className="font-display font-semibold text-slate-800 mb-4">Attendance Records</h2>
@@ -676,7 +677,6 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
             </div>
           )}
 
-          {/* PROGRESS TAB */}
           {activeTab === 'progress' && sessionData.progress_tracking_enabled && (
             <div className="card p-6">
               <h2 className="font-display font-semibold text-slate-800 mb-4">Progress Tracking</h2>
@@ -696,10 +696,7 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
                             <p className="font-medium text-slate-800">{learner.learner_name || learner.learner_email}</p>
                             <p className="text-sm text-slate-500">{learnerProgress.length} days recorded</p>
                           </div>
-                          <button
-                            onClick={() => setSelectedLearnerForProgress(learner)}
-                            className="btn-secondary text-sm"
-                          >
+                          <button onClick={() => setSelectedLearnerForProgress(learner)} className="btn-secondary text-sm">
                             <TrendingUp className="w-4 h-4 mr-1" /> Manage Progress
                           </button>
                         </div>
@@ -734,7 +731,6 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
             </div>
           )}
 
-          {/* MESSAGES TAB */}
           {activeTab === 'messages' && (
             <div className="card p-6">
               {!isCancelled && (
@@ -967,7 +963,6 @@ function LearnerProgressModal({ learner, session, trainingDays, existingProgress
     }
   }
 
-  // Calculate weekly averages
   const getWeeklyAverages = () => {
     const weeks = {}
     Object.entries(progressData).forEach(([dateStr, data]) => {
@@ -1001,8 +996,7 @@ function LearnerProgressModal({ learner, session, trainingDays, existingProgress
         </div>
 
         <div className="flex-1 overflow-y-auto p-5">
-          {/* Weekly Summary */}
-          {weeklyAverages.length > 0 && (
+          {weeklyAverages.length > 0 && weeklyAverages.some(w => w.participation !== null || w.accuracy !== null || w.productivity !== null) && (
             <div className="mb-6">
               <h3 className="font-medium text-slate-800 mb-3">Weekly Trends</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1029,7 +1023,6 @@ function LearnerProgressModal({ learner, session, trainingDays, existingProgress
             </div>
           )}
 
-          {/* Daily Scores */}
           <h3 className="font-medium text-slate-800 mb-3">Daily Scores</h3>
           <div className="space-y-4">
             {trainingDays.map((day) => {
