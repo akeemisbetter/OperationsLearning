@@ -4,9 +4,10 @@ import { supabase } from '../../lib/supabase'
 import { 
   GraduationCap, BookOpen, Calendar, Clock, CheckCircle2, 
   XCircle, ArrowLeft, MessageSquare, User, Lock, Globe,
-  ChevronRight, TrendingUp, BarChart3, AlertTriangle
+  ChevronRight, TrendingUp, BarChart3, AlertTriangle, Award, Download
 } from 'lucide-react'
 import { format, eachDayOfInterval, parseISO, isBefore, isToday, startOfWeek, endOfWeek } from 'date-fns'
+import { downloadCertificate } from '../../lib/certificateGenerator'
 
 const TOPICS = {
   hrp_navigation: 'HRP Navigation',
@@ -15,6 +16,13 @@ const TOPICS = {
   dlp_role_specific: 'DLP-Role Specific',
   learninglab: 'LearningLab',
   refresher: 'Refresher',
+}
+
+const CLIENTS = {
+  ibx: 'IBX',
+  hwc: 'HWC',
+  az_blue: 'AZ Blue',
+  clover: 'Clover',
 }
 
 const formatTime = (timeStr) => {
@@ -28,6 +36,7 @@ const formatTime = (timeStr) => {
 function MyLearning() {
   const { profile } = useAuth()
   const [enrollments, setEnrollments] = useState([])
+  const [certificates, setCertificates] = useState([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('active')
   const [selectedTraining, setSelectedTraining] = useState(null)
@@ -35,6 +44,7 @@ function MyLearning() {
   useEffect(() => {
     if (profile) {
       fetchEnrollments()
+      fetchCertificates()
     }
   }, [profile])
 
@@ -48,6 +58,7 @@ function MyLearning() {
             id,
             topic,
             audience,
+            client,
             session_date,
             end_date,
             start_time,
@@ -68,6 +79,40 @@ function MyLearning() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const fetchCertificates = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('certificates')
+        .select(`
+          *,
+          training_sessions (
+            id,
+            topic,
+            client,
+            profiles:trainer_id (full_name)
+          )
+        `)
+        .eq('learner_id', profile.id)
+        .order('issued_at', { ascending: false })
+
+      if (error) throw error
+      setCertificates(data || [])
+    } catch (error) {
+      console.error('Error fetching certificates:', error)
+    }
+  }
+
+  const handleDownloadCertificate = (cert) => {
+    downloadCertificate({
+      learnerName: cert.learner_name || profile.full_name || 'Learner',
+      sessionTopic: TOPICS[cert.training_sessions?.topic] || cert.training_sessions?.topic || 'Training',
+      trainerName: cert.training_sessions?.profiles?.full_name || 'Trainer',
+      completionDate: format(new Date(cert.issued_at), 'MMMM d, yyyy'),
+      certificateNumber: cert.certificate_number,
+      clientName: CLIENTS[cert.training_sessions?.client] || cert.training_sessions?.client || ''
+    })
   }
 
   const today = new Date()
@@ -125,14 +170,14 @@ function MyLearning() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <StatCard icon={BookOpen} value={activeEnrollments.length} label="Active Trainings" color="brand" />
         <StatCard icon={CheckCircle2} value={pastEnrollments.length} label="Completed" color="emerald" />
+        <StatCard icon={Award} value={certificates.length} label="Certificates" color="purple" />
         <StatCard icon={Clock} value="--" label="Hours Learned" color="amber" />
-        <StatCard icon={GraduationCap} value="--" label="Certificates" color="purple" />
       </div>
 
-      <div className="flex gap-2 mb-6">
+      <div className="flex gap-2 mb-6 overflow-x-auto">
         <button
           onClick={() => setActiveTab('active')}
-          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+          className={`px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${
             activeTab === 'active' ? 'bg-brand-100 text-brand-700' : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
@@ -140,16 +185,25 @@ function MyLearning() {
         </button>
         <button
           onClick={() => setActiveTab('completed')}
-          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+          className={`px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${
             activeTab === 'completed' ? 'bg-brand-100 text-brand-700' : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
           Completed ({pastEnrollments.length})
         </button>
+        <button
+          onClick={() => setActiveTab('certificates')}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap flex items-center gap-2 ${
+            activeTab === 'certificates' ? 'bg-brand-100 text-brand-700' : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <Award className="w-4 h-4" />
+          Certificates ({certificates.length})
+        </button>
         {cancelledEnrollments.length > 0 && (
           <button
             onClick={() => setActiveTab('cancelled')}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            className={`px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${
               activeTab === 'cancelled' ? 'bg-brand-100 text-brand-700' : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
@@ -164,7 +218,53 @@ function MyLearning() {
             <div key={i} className="card h-32 animate-pulse bg-slate-100" />
           ))}
         </div>
+      ) : activeTab === 'certificates' ? (
+        // Certificates Tab
+        <div className="space-y-4">
+          {certificates.length > 0 ? (
+            certificates.map((cert) => (
+              <div key={cert.id} className="card p-5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-xl bg-purple-100 flex items-center justify-center">
+                      <Award className="w-7 h-7 text-purple-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-slate-800">
+                        {TOPICS[cert.training_sessions?.topic] || cert.training_sessions?.topic || 'Training'}
+                      </h3>
+                      <p className="text-sm text-slate-500">
+                        Issued on {format(new Date(cert.issued_at), 'MMMM d, yyyy')}
+                      </p>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Certificate No: {cert.certificate_number}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleDownloadCertificate(cert)}
+                    className="btn-primary text-sm"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Download
+                  </button>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="card p-12 text-center">
+              <Award className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+              <h3 className="font-display font-semibold text-slate-800 mb-2">
+                No certificates yet
+              </h3>
+              <p className="text-slate-500">
+                Complete your trainings to earn certificates
+              </p>
+            </div>
+          )}
+        </div>
       ) : (
+        // Training Tabs (Active, Completed, Cancelled)
         <div className="space-y-4">
           {(activeTab === 'active' ? activeEnrollments : activeTab === 'completed' ? pastEnrollments : cancelledEnrollments).length > 0 ? (
             (activeTab === 'active' ? activeEnrollments : activeTab === 'completed' ? pastEnrollments : cancelledEnrollments).map((enrollment) => (
@@ -274,6 +374,7 @@ function TrainingDetail({ enrollment, profile, onBack }) {
   const [messages, setMessages] = useState([])
   const [attendance, setAttendance] = useState([])
   const [progress, setProgress] = useState([])
+  const [certificate, setCertificate] = useState(null)
   const [unreadCount, setUnreadCount] = useState(0)
   const [loading, setLoading] = useState(true)
 
@@ -328,6 +429,16 @@ function TrainingDetail({ enrollment, profile, onBack }) {
 
         setProgress(progressData || [])
       }
+
+      // Fetch certificate
+      const { data: certData } = await supabase
+        .from('certificates')
+        .select('*')
+        .eq('session_id', session.id)
+        .eq('learner_id', profile.id)
+        .single()
+
+      setCertificate(certData || null)
     } catch (error) {
       console.error('Error fetching training data:', error)
     } finally {
@@ -336,10 +447,6 @@ function TrainingDetail({ enrollment, profile, onBack }) {
   }
 
   const markMessagesAsRead = async () => {
-    const unreadMessages = messages.filter(m => {
-      return !m.read
-    })
-    
     for (const msg of messages) {
       try {
         await supabase
@@ -360,6 +467,19 @@ function TrainingDetail({ enrollment, profile, onBack }) {
     if (tab === 'messages') {
       markMessagesAsRead()
     }
+  }
+
+  const handleDownloadCertificate = () => {
+    if (!certificate) return
+
+    downloadCertificate({
+      learnerName: certificate.learner_name || profile.full_name || 'Learner',
+      sessionTopic: TOPICS[session.topic] || session.topic || 'Training',
+      trainerName: session.profiles?.full_name || 'Trainer',
+      completionDate: format(new Date(certificate.issued_at), 'MMMM d, yyyy'),
+      certificateNumber: certificate.certificate_number,
+      clientName: CLIENTS[session.client] || session.client || ''
+    })
   }
 
   const startDate = parseISO(session.session_date)
@@ -431,6 +551,22 @@ function TrainingDetail({ enrollment, profile, onBack }) {
             <p className="font-medium text-red-800">This training has been cancelled</p>
             <p className="text-sm text-red-600">Contact your trainer for more information</p>
           </div>
+        </div>
+      )}
+
+      {/* Certificate Banner */}
+      {certificate && (
+        <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 mb-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Award className="w-6 h-6 text-purple-600" />
+            <div>
+              <p className="font-medium text-purple-800">You have a certificate!</p>
+              <p className="text-sm text-purple-600">Certificate No: {certificate.certificate_number}</p>
+            </div>
+          </div>
+          <button onClick={handleDownloadCertificate} className="btn-primary text-sm bg-purple-600 hover:bg-purple-700">
+            <Download className="w-4 h-4 mr-2" />Download Certificate
+          </button>
         </div>
       )}
 
@@ -525,6 +661,24 @@ function TrainingDetail({ enrollment, profile, onBack }) {
                       </div>
                     </div>
                   </div>
+
+                  {certificate && (
+                    <div className="mt-6 pt-6 border-t border-slate-100">
+                      <h3 className="font-medium text-slate-800 mb-3">Certificate</h3>
+                      <div className="bg-purple-50 rounded-xl p-4 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Award className="w-8 h-8 text-purple-600" />
+                          <div>
+                            <p className="font-medium text-purple-800">Certificate of Completion</p>
+                            <p className="text-sm text-purple-600">Issued: {format(new Date(certificate.issued_at), 'MMMM d, yyyy')}</p>
+                          </div>
+                        </div>
+                        <button onClick={handleDownloadCertificate} className="btn-secondary text-sm">
+                          <Download className="w-4 h-4 mr-1" />Download
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
