@@ -74,7 +74,7 @@ function MainLayout() {
         >
           <Menu className="w-6 h-6 text-slate-600" />
         </button>
-        <span className="font-display font-semibold text-slate-800">HRP Learning Hub</span>
+        <span className="font-display font-semibold text-slate-800">Akeem's Learning Hub</span>
         <div className="w-10" />
       </div>
 
@@ -100,8 +100,8 @@ function MainLayout() {
                 <GraduationCap className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h1 className="font-display font-semibold text-slate-800 text-sm">HRP Learning Hub</h1>
-                <p className="text-xs text-slate-500">UST HealthProof</p>
+                <h1 className="font-display font-semibold text-slate-800 text-sm">Akeem's Learning Hub</h1>
+                <p className="text-xs text-slate-500">Training Portal</p>
               </div>
             </div>
             <button
