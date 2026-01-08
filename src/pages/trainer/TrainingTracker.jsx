@@ -23,7 +23,6 @@ const AUDIENCES = [
   { id: 'external', label: 'External' },
 ]
 
-// Helper to format time in 12-hour format
 const formatTime = (timeStr) => {
   if (!timeStr) return 'TBD'
   const [hours, minutes] = timeStr.split(':')
@@ -32,12 +31,10 @@ const formatTime = (timeStr) => {
   return format(date, 'h:mm a')
 }
 
-// Helper to get topic label
 const getTopicLabel = (topicId) => {
   return TOPICS.find(t => t.id === topicId)?.label || topicId || 'Training'
 }
 
-// Helper to get audience label
 const getAudienceLabel = (audienceId) => {
   return AUDIENCES.find(a => a.id === audienceId)?.label || audienceId || 'All'
 }
@@ -60,10 +57,7 @@ function TrainingTracker() {
     try {
       const { data, error } = await supabase
         .from('training_sessions')
-        .select(`
-          *,
-          session_enrollments (id)
-        `)
+        .select('*, session_enrollments (id)')
         .eq('trainer_id', profile.id)
         .order('session_date', { ascending: false })
 
@@ -100,7 +94,6 @@ function TrainingTracker() {
     }
   }
 
-  // If a session is selected, show the detail view
   if (selectedSession) {
     return (
       <TrainingDetailView
@@ -117,26 +110,19 @@ function TrainingTracker() {
 
   return (
     <div className="max-w-5xl mx-auto animate-fade-in">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <div>
           <h1 className="font-display text-2xl lg:text-3xl font-bold text-slate-800 mb-2">
             My Classes
           </h1>
-          <p className="text-slate-500">
-            Schedule and manage your training classes
-          </p>
+          <p className="text-slate-500">Schedule and manage your training classes</p>
         </div>
-        <button 
-          onClick={() => setShowScheduleModal(true)}
-          className="btn-primary"
-        >
+        <button onClick={() => setShowScheduleModal(true)} className="btn-primary">
           <Plus className="w-5 h-5 mr-2" />
           Schedule Class
         </button>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         <div className="card p-5">
           <div className="flex items-center gap-3">
@@ -175,14 +161,11 @@ function TrainingTracker() {
         </div>
       </div>
 
-      {/* Filter Tabs */}
       <div className="flex gap-2 mb-6">
         <button
           onClick={() => setActiveFilter('upcoming')}
           className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-            activeFilter === 'upcoming' 
-              ? 'bg-brand-100 text-brand-700' 
-              : 'text-slate-600 hover:bg-slate-100'
+            activeFilter === 'upcoming' ? 'bg-brand-100 text-brand-700' : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
           Upcoming ({upcomingSessions.length})
@@ -190,9 +173,7 @@ function TrainingTracker() {
         <button
           onClick={() => setActiveFilter('past')}
           className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-            activeFilter === 'past' 
-              ? 'bg-brand-100 text-brand-700' 
-              : 'text-slate-600 hover:bg-slate-100'
+            activeFilter === 'past' ? 'bg-brand-100 text-brand-700' : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
           Past ({pastSessions.length})
@@ -200,16 +181,13 @@ function TrainingTracker() {
         <button
           onClick={() => setActiveFilter('cancelled')}
           className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-            activeFilter === 'cancelled' 
-              ? 'bg-brand-100 text-brand-700' 
-              : 'text-slate-600 hover:bg-slate-100'
+            activeFilter === 'cancelled' ? 'bg-brand-100 text-brand-700' : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
           Cancelled ({cancelledSessions.length})
         </button>
       </div>
 
-      {/* Sessions list */}
       <div className="card">
         <div className="p-5 border-b border-slate-200">
           <h2 className="font-display font-semibold text-slate-800">
@@ -243,28 +221,17 @@ function TrainingTracker() {
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        <h3 className="font-medium text-slate-800">
-                          {getTopicLabel(session.topic)}
-                        </h3>
+                        <h3 className="font-medium text-slate-800">{getTopicLabel(session.topic)}</h3>
                         {session.status === 'cancelled' && (
                           <span className="badge bg-red-100 text-red-700">Cancelled</span>
                         )}
                       </div>
                       <div className="flex flex-wrap items-center gap-2 text-sm">
-                        <span className="badge badge-blue">
-                          {getAudienceLabel(session.audience)}
-                        </span>
-                        {session.status !== 'cancelled' && (
-                          <span className="badge badge-slate">
-                            {session.status || 'scheduled'}
-                          </span>
-                        )}
+                        <span className="badge badge-blue">{getAudienceLabel(session.audience)}</span>
                         <span className="text-slate-500 flex items-center gap-1">
                           <Calendar className="w-4 h-4" />
                           {format(startDate, 'MMM d, yyyy')}
-                          {isMultiDay && (
-                            <span> - {format(endDate, 'MMM d, yyyy')}</span>
-                          )}
+                          {isMultiDay && <span> - {format(endDate, 'MMM d, yyyy')}</span>}
                         </span>
                         <span className="text-slate-500 flex items-center gap-1">
                           <Clock className="w-4 h-4" />
@@ -276,9 +243,7 @@ function TrainingTracker() {
                         </span>
                       </div>
                     </div>
-                    <button className="btn-secondary text-sm py-2">
-                      Manage
-                    </button>
+                    <button className="btn-secondary text-sm py-2">Manage</button>
                   </div>
                 </div>
               )
@@ -287,24 +252,16 @@ function TrainingTracker() {
         ) : (
           <div className="p-12 text-center">
             <BarChart3 className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-            <h3 className="font-display font-semibold text-slate-800 mb-2">
-              {activeFilter === 'upcoming' && 'No upcoming classes'}
-              {activeFilter === 'past' && 'No past classes'}
-              {activeFilter === 'cancelled' && 'No cancelled classes'}
-            </h3>
+            <h3 className="font-display font-semibold text-slate-800 mb-2">No classes found</h3>
             {activeFilter === 'upcoming' && (
-              <>
-                <p className="text-slate-500 mb-4">Schedule your first training class</p>
-                <button onClick={() => setShowScheduleModal(true)} className="btn-primary">
-                  Schedule Class
-                </button>
-              </>
+              <button onClick={() => setShowScheduleModal(true)} className="btn-primary mt-4">
+                Schedule Class
+              </button>
             )}
           </div>
         )}
       </div>
 
-      {/* Schedule Modal */}
       {showScheduleModal && (
         <ScheduleModal
           profile={profile}
@@ -319,859 +276,6 @@ function TrainingTracker() {
   )
 }
 
-/* ======================== */
-/* TRAINING DETAIL VIEW     */
-/* ======================== */
-
-function TrainingDetailView({ session, profile, onBack, onUpdate }) {
-  const [activeTab, setActiveTab] = useState('overview')
-  const [learners, setLearners] = useState([])
-  const [messages, setMessages] = useState([])
-  const [attendance, setAttendance] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [sessionData, setSessionData] = useState(session)
-
-  // Edit modal state
-  const [showEditModal, setShowEditModal] = useState(false)
-  const [showCancelModal, setShowCancelModal] = useState(false)
-  const [showRescheduleModal, setShowRescheduleModal] = useState(false)
-
-  // Message state
-  const [newMessage, setNewMessage] = useState('')
-  const [isPrivate, setIsPrivate] = useState(false)
-  const [selectedRecipient, setSelectedRecipient] = useState('')
-  const [saving, setSaving] = useState(false)
-
-  // Add learner state
-  const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState([])
-  const [searching, setSearching] = useState(false)
-  const [showManualEntry, setShowManualEntry] = useState(false)
-  const [manualName, setManualName] = useState('')
-  const [manualEmail, setManualEmail] = useState('')
-  const [manualId, setManualId] = useState('')
-
-  const startDate = parseISO(sessionData.session_date)
-  const endDate = sessionData.end_date ? parseISO(sessionData.end_date) : startDate
-  const isMultiDay = sessionData.end_date && sessionData.end_date !== sessionData.session_date
-  const trainingDays = isMultiDay 
-    ? eachDayOfInterval({ start: startDate, end: endDate })
-    : [startDate]
-
-  const isCancelled = sessionData.status === 'cancelled'
-
-  useEffect(() => {
-    fetchData()
-  }, [sessionData.id])
-
-  const fetchData = async () => {
-    try {
-      // Fetch learners
-      const { data: learnersData } = await supabase
-        .from('session_enrollments')
-        .select('*')
-        .eq('session_id', sessionData.id)
-
-      setLearners(learnersData || [])
-
-      // Fetch messages
-      const { data: messagesData } = await supabase
-        .from('training_messages')
-        .select(`
-          *,
-          profiles:sender_id (full_name),
-          recipient:recipient_id (full_name)
-        `)
-        .eq('session_id', sessionData.id)
-        .order('created_at', { ascending: false })
-
-      setMessages(messagesData || [])
-
-      // Fetch attendance
-      const { data: attendanceData } = await supabase
-        .from('learner_attendance')
-        .select(`
-          *,
-          profiles:learner_id (full_name, email)
-        `)
-        .eq('session_id', sessionData.id)
-
-      setAttendance(attendanceData || [])
-    } catch (error) {
-      console.error('Error fetching data:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const refreshSession = async () => {
-    const { data } = await supabase
-      .from('training_sessions')
-      .select('*')
-      .eq('id', sessionData.id)
-      .single()
-    
-    if (data) {
-      setSessionData(data)
-    }
-  }
-
-  // Search for users
-  const handleSearch = async (query) => {
-    setSearchQuery(query)
-    
-    if (query.length < 2) {
-      setSearchResults([])
-      return
-    }
-
-    setSearching(true)
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, full_name, email, role')
-        .or(`full_name.ilike.%${query}%,email.ilike.%${query}%`)
-        .limit(10)
-
-      if (error) throw error
-      
-      const enrolledIds = learners.map(l => l.learner_id)
-      const enrolledEmails = learners.map(l => l.learner_email)
-      const filtered = data.filter(u => 
-        !enrolledIds.includes(u.id) && !enrolledEmails.includes(u.email)
-      )
-      
-      setSearchResults(filtered || [])
-    } catch (error) {
-      console.error('Error searching users:', error)
-    } finally {
-      setSearching(false)
-    }
-  }
-
-  const handleAddFromSearch = async (user) => {
-    setSaving(true)
-    try {
-      const { error } = await supabase
-        .from('session_enrollments')
-        .insert({
-          session_id: sessionData.id,
-          learner_id: user.id,
-          learner_name: user.full_name,
-          learner_email: user.email,
-          status: 'enrolled'
-        })
-
-      if (error) throw error
-
-      setSearchQuery('')
-      setSearchResults([])
-      fetchData()
-    } catch (error) {
-      console.error('Error adding learner:', error)
-      alert('Failed to add learner: ' + error.message)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleAddManual = async () => {
-    if (!manualName && !manualEmail && !manualId) {
-      alert('Please enter at least a name, email, or ID')
-      return
-    }
-
-    setSaving(true)
-    try {
-      const { error } = await supabase
-        .from('session_enrollments')
-        .insert({
-          session_id: sessionData.id,
-          learner_name: manualName || null,
-          learner_email: manualEmail || null,
-          learner_unique_id: manualId || null,
-          status: 'enrolled'
-        })
-
-      if (error) throw error
-
-      setManualName('')
-      setManualEmail('')
-      setManualId('')
-      setShowManualEntry(false)
-      fetchData()
-    } catch (error) {
-      console.error('Error adding learner:', error)
-      alert('Failed to add learner: ' + error.message)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleRemoveLearner = async (id) => {
-    if (!confirm('Remove this learner?')) return
-
-    try {
-      const { error } = await supabase
-        .from('session_enrollments')
-        .delete()
-        .eq('id', id)
-
-      if (error) throw error
-      fetchData()
-    } catch (error) {
-      console.error('Error removing learner:', error)
-    }
-  }
-
-  const handleStatusChange = async (id, newStatus) => {
-    try {
-      const { error } = await supabase
-        .from('session_enrollments')
-        .update({ status: newStatus })
-        .eq('id', id)
-
-      if (error) throw error
-      fetchData()
-    } catch (error) {
-      console.error('Error updating status:', error)
-    }
-  }
-
-  const handleSendMessage = async () => {
-    if (!newMessage.trim()) {
-      alert('Please enter a message')
-      return
-    }
-
-    if (isPrivate && !selectedRecipient) {
-      alert('Please select a recipient for private messages')
-      return
-    }
-
-    setSaving(true)
-    try {
-      const { error } = await supabase
-        .from('training_messages')
-        .insert({
-          session_id: sessionData.id,
-          sender_id: profile.id,
-          recipient_id: isPrivate ? selectedRecipient : null,
-          message: newMessage.trim(),
-          is_private: isPrivate
-        })
-
-      if (error) throw error
-
-      setNewMessage('')
-      setIsPrivate(false)
-      setSelectedRecipient('')
-      fetchData()
-    } catch (error) {
-      console.error('Error sending message:', error)
-      alert('Failed to send message: ' + error.message)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  // Get attendance summary for a date
-  const getAttendanceSummaryForDate = (date) => {
-    const dateStr = format(date, 'yyyy-MM-dd')
-    const dayAttendance = attendance.filter(a => a.attendance_date === dateStr)
-    return {
-      present: dayAttendance.filter(a => a.status === 'present').length,
-      absent: dayAttendance.filter(a => a.status === 'absent').length,
-      late: dayAttendance.filter(a => a.status === 'late').length,
-      total: learners.length
-    }
-  }
-
-  return (
-    <div className="max-w-5xl mx-auto animate-fade-in">
-      {/* Back button */}
-      <button
-        onClick={onBack}
-        className="flex items-center gap-2 text-slate-600 hover:text-slate-800 mb-6"
-      >
-        <ArrowLeft className="w-5 h-5" />
-        Back to My Classes
-      </button>
-
-      {/* Cancelled Banner */}
-      {isCancelled && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 flex items-center gap-3">
-          <AlertTriangle className="w-5 h-5 text-red-600" />
-          <div>
-            <p className="font-medium text-red-800">This class has been cancelled</p>
-            <p className="text-sm text-red-600">Enrolled learners have been notified</p>
-          </div>
-        </div>
-      )}
-
-      {/* Header */}
-      <div className="card p-6 mb-6">
-        <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-4">
-          <div>
-            <h1 className="font-display text-2xl font-bold text-slate-800 mb-2">
-              {getTopicLabel(sessionData.topic)}
-            </h1>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="badge badge-blue">{getAudienceLabel(sessionData.audience)}</span>
-              <span className={`badge ${
-                sessionData.status === 'cancelled' ? 'bg-red-100 text-red-700' :
-                sessionData.status === 'completed' ? 'badge-green' : 'badge-amber'
-              }`}>
-                {sessionData.status || 'scheduled'}
-              </span>
-            </div>
-          </div>
-          
-          {/* Action buttons */}
-          {!isCancelled && (
-            <div className="flex gap-2 flex-wrap">
-              <button
-                onClick={() => setShowEditModal(true)}
-                className="btn-secondary text-sm"
-              >
-                <Edit className="w-4 h-4 mr-1" />
-                Edit
-              </button>
-              <button
-                onClick={() => setShowRescheduleModal(true)}
-                className="btn-secondary text-sm"
-              >
-                <RefreshCw className="w-4 h-4 mr-1" />
-                Reschedule
-              </button>
-              <button
-                onClick={() => setShowCancelModal(true)}
-                className="px-3 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
-              >
-                <XCircle className="w-4 h-4 mr-1 inline" />
-                Cancel
-              </button>
-            </div>
-          )}
-        </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-          <div>
-            <p className="text-slate-500 mb-1">Start Date</p>
-            <p className="font-medium text-slate-800">{format(startDate, 'MMM d, yyyy')}</p>
-          </div>
-          {isMultiDay && (
-            <div>
-              <p className="text-slate-500 mb-1">End Date</p>
-              <p className="font-medium text-slate-800">{format(endDate, 'MMM d, yyyy')}</p>
-            </div>
-          )}
-          <div>
-            <p className="text-slate-500 mb-1">Time</p>
-            <p className="font-medium text-slate-800">
-              {formatTime(sessionData.start_time)} - {formatTime(sessionData.end_time)}
-            </p>
-          </div>
-          {sessionData.location && (
-            <div>
-              <p className="text-slate-500 mb-1">Location</p>
-              <p className="font-medium text-slate-800">{sessionData.location}</p>
-            </div>
-          )}
-          {isMultiDay && (
-            <div>
-              <p className="text-slate-500 mb-1">Duration</p>
-              <p className="font-medium text-slate-800">{trainingDays.length} days</p>
-            </div>
-          )}
-          <div>
-            <p className="text-slate-500 mb-1">Enrolled</p>
-            <p className="font-medium text-slate-800">{learners.length} learners</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-2 mb-6 overflow-x-auto">
-        <button
-          onClick={() => setActiveTab('overview')}
-          className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap ${
-            activeTab === 'overview' 
-              ? 'bg-brand-100 text-brand-700' 
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          Overview
-        </button>
-        <button
-          onClick={() => setActiveTab('learners')}
-          className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap ${
-            activeTab === 'learners' 
-              ? 'bg-brand-100 text-brand-700' 
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          Learners ({learners.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('attendance')}
-          className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap ${
-            activeTab === 'attendance' 
-              ? 'bg-brand-100 text-brand-700' 
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          Attendance
-        </button>
-        <button
-          onClick={() => setActiveTab('messages')}
-          className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap flex items-center gap-2 ${
-            activeTab === 'messages' 
-              ? 'bg-brand-100 text-brand-700' 
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <MessageSquare className="w-4 h-4" />
-          Messages ({messages.length})
-        </button>
-      </div>
-
-      {/* Tab Content */}
-      {loading ? (
-        <div className="card p-6 animate-pulse">
-          <div className="h-32 bg-slate-100 rounded-xl" />
-        </div>
-      ) : (
-        <>
-          {/* Overview Tab */}
-          {activeTab === 'overview' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Quick Stats */}
-              <div className="card p-6">
-                <h2 className="font-display font-semibold text-slate-800 mb-4">
-                  Quick Stats
-                </h2>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-600">Total Enrolled</span>
-                    <span className="font-semibold text-slate-800">{learners.length}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-600">Training Days</span>
-                    <span className="font-semibold text-slate-800">{trainingDays.length}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-600">Messages Sent</span>
-                    <span className="font-semibold text-slate-800">{messages.length}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-600">Attendance Records</span>
-                    <span className="font-semibold text-slate-800">{attendance.length}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Attendance by Day */}
-              <div className="card p-6">
-                <h2 className="font-display font-semibold text-slate-800 mb-4">
-                  Attendance by Day
-                </h2>
-                <div className="space-y-3 max-h-64 overflow-y-auto">
-                  {trainingDays.map((day) => {
-                    const summary = getAttendanceSummaryForDate(day)
-                    const isTodayDate = isToday(day)
-                    
-                    return (
-                      <div 
-                        key={day.toISOString()}
-                        className={`p-3 rounded-lg ${
-                          isTodayDate ? 'bg-brand-50 border border-brand-200' : 'bg-slate-50'
-                        }`}
-                      >
-                        <div className="flex justify-between items-center">
-                          <span className="font-medium text-slate-800">
-                            {format(day, 'EEE, MMM d')}
-                            {isTodayDate && <span className="text-brand-600 ml-2">(Today)</span>}
-                          </span>
-                          <div className="flex gap-3 text-sm">
-                            <span className="text-green-600">{summary.present} present</span>
-                            <span className="text-red-600">{summary.absent} absent</span>
-                            <span className="text-amber-600">{summary.late} late</span>
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Learners Tab */}
-          {activeTab === 'learners' && (
-            <div className="card p-6">
-              {/* Add learner section */}
-              {!isCancelled && (
-                <div className="bg-slate-50 rounded-xl p-4 mb-6">
-                  <h3 className="font-medium text-slate-800 mb-3">Add Learner</h3>
-                  
-                  <div className="relative mb-3">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => handleSearch(e.target.value)}
-                      placeholder="Search by name or email..."
-                      className="input pl-10"
-                    />
-                  </div>
-
-                  {searchQuery.length >= 2 && (
-                    <div className="mb-3">
-                      {searching ? (
-                        <p className="text-sm text-slate-500 p-2">Searching...</p>
-                      ) : searchResults.length > 0 ? (
-                        <div className="border border-slate-200 rounded-lg divide-y divide-slate-100 bg-white max-h-48 overflow-y-auto">
-                          {searchResults.map((user) => (
-                            <div
-                              key={user.id}
-                              className="flex items-center justify-between p-3 hover:bg-slate-50"
-                            >
-                              <div>
-                                <p className="font-medium text-slate-800">{user.full_name}</p>
-                                <p className="text-sm text-slate-500">{user.email}</p>
-                              </div>
-                              <button
-                                onClick={() => handleAddFromSearch(user)}
-                                disabled={saving}
-                                className="btn-primary text-sm py-1.5 px-3"
-                              >
-                                <Check className="w-4 h-4 mr-1" />
-                                Add
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-slate-500 p-2">No users found</p>
-                      )}
-                    </div>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={() => setShowManualEntry(!showManualEntry)}
-                    className="text-sm text-brand-600 hover:text-brand-700 font-medium"
-                  >
-                    {showManualEntry ? 'Hide manual entry' : 'Or add manually...'}
-                  </button>
-
-                  {showManualEntry && (
-                    <div className="mt-3 pt-3 border-t border-slate-200">
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
-                        <input
-                          type="text"
-                          value={manualName}
-                          onChange={(e) => setManualName(e.target.value)}
-                          placeholder="Name"
-                          className="input py-2"
-                        />
-                        <input
-                          type="email"
-                          value={manualEmail}
-                          onChange={(e) => setManualEmail(e.target.value)}
-                          placeholder="Email"
-                          className="input py-2"
-                        />
-                        <input
-                          type="text"
-                          value={manualId}
-                          onChange={(e) => setManualId(e.target.value)}
-                          placeholder="Unique ID"
-                          className="input py-2"
-                        />
-                      </div>
-                      <button onClick={handleAddManual} disabled={saving} className="btn-primary">
-                        <UserPlus className="w-4 h-4 mr-2" />
-                        {saving ? 'Adding...' : 'Add Learner'}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Learners list */}
-              <h3 className="font-medium text-slate-800 mb-3">
-                Enrolled Learners ({learners.length})
-              </h3>
-
-              {learners.length > 0 ? (
-                <div className="space-y-2">
-                  {learners.map((learner) => (
-                    <div
-                      key={learner.id}
-                      className="flex items-center justify-between p-4 border border-slate-200 rounded-xl"
-                    >
-                      <div>
-                        <p className="font-medium text-slate-800">
-                          {learner.learner_name || learner.learner_email || learner.learner_unique_id}
-                        </p>
-                        <p className="text-sm text-slate-500">
-                          {learner.learner_email && <span className="mr-3">{learner.learner_email}</span>}
-                          {learner.learner_unique_id && <span>ID: {learner.learner_unique_id}</span>}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <select
-                          value={learner.status}
-                          onChange={(e) => handleStatusChange(learner.id, e.target.value)}
-                          className="text-sm border border-slate-200 rounded-lg px-2 py-1"
-                          disabled={isCancelled}
-                        >
-                          <option value="enrolled">Enrolled</option>
-                          <option value="attended">Attended</option>
-                          <option value="no_show">No Show</option>
-                          <option value="cancelled">Cancelled</option>
-                        </select>
-                        {!isCancelled && (
-                          <button
-                            onClick={() => handleRemoveLearner(learner.id)}
-                            className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-slate-500">
-                  <Users className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                  <p>No learners enrolled yet</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Attendance Tab */}
-          {activeTab === 'attendance' && (
-            <div className="card p-6">
-              <h2 className="font-display font-semibold text-slate-800 mb-4">
-                Attendance Records
-              </h2>
-
-              {trainingDays.map((day) => {
-                const dayAttendance = attendance.filter(
-                  a => a.attendance_date === format(day, 'yyyy-MM-dd')
-                )
-                const isTodayDate = isToday(day)
-
-                return (
-                  <div key={day.toISOString()} className="mb-6 last:mb-0">
-                    <h3 className={`font-medium mb-3 ${
-                      isTodayDate ? 'text-brand-700' : 'text-slate-800'
-                    }`}>
-                      {format(day, 'EEEE, MMMM d, yyyy')}
-                      {isTodayDate && <span className="text-brand-600 ml-2">(Today)</span>}
-                    </h3>
-
-                    {dayAttendance.length > 0 ? (
-                      <div className="space-y-2">
-                        {dayAttendance.map((record) => (
-                          <div
-                            key={record.id}
-                            className="flex items-center justify-between p-3 bg-slate-50 rounded-lg"
-                          >
-                            <div>
-                              <p className="font-medium text-slate-800">
-                                {record.profiles?.full_name || record.profiles?.email || 'Learner'}
-                              </p>
-                            </div>
-                            <span className={`badge ${
-                              record.status === 'present' ? 'badge-green' :
-                              record.status === 'absent' ? 'bg-red-100 text-red-700' :
-                              'badge-amber'
-                            }`}>
-                              <span className="flex items-center gap-1">
-                                {record.status === 'present' && <CheckCircle2 className="w-3 h-3" />}
-                                {record.status === 'absent' && <XCircle className="w-3 h-3" />}
-                                {record.status === 'late' && <Clock className="w-3 h-3" />}
-                                {record.status}
-                              </span>
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-slate-500 p-3 bg-slate-50 rounded-lg">
-                        No attendance records for this day yet
-                      </p>
-                    )}
-                  </div>
-                )
-              })}
-
-              {attendance.length === 0 && (
-                <div className="text-center py-8 text-slate-500">
-                  <Calendar className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                  <p>No attendance records yet</p>
-                  <p className="text-sm">Learners will mark their attendance during the training</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Messages Tab */}
-          {activeTab === 'messages' && (
-            <div className="card p-6">
-              {/* Send message */}
-              {!isCancelled && (
-                <div className="bg-slate-50 rounded-xl p-4 mb-6">
-                  <h3 className="font-medium text-slate-800 mb-3">Send Message to Learners</h3>
-                  
-                  <textarea
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder="Write a message to learners..."
-                    className="input resize-none h-24 mb-3"
-                  />
-
-                  <div className="flex flex-wrap items-center gap-4 mb-3">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={isPrivate}
-                        onChange={(e) => setIsPrivate(e.target.checked)}
-                        className="w-4 h-4 rounded border-slate-300 text-brand-600"
-                      />
-                      <span className="text-sm text-slate-700">Private message</span>
-                    </label>
-
-                    {isPrivate && learners.length > 0 && (
-                      <select
-                        value={selectedRecipient}
-                        onChange={(e) => setSelectedRecipient(e.target.value)}
-                        className="input py-2 flex-1"
-                      >
-                        <option value="">Select recipient...</option>
-                        {learners.filter(l => l.learner_id).map((learner) => (
-                          <option key={learner.id} value={learner.learner_id}>
-                            {learner.learner_name || learner.learner_email}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                  </div>
-
-                  <button
-                    onClick={handleSendMessage}
-                    disabled={saving}
-                    className="btn-primary"
-                  >
-                    <MessageSquare className="w-4 h-4 mr-2" />
-                    {saving ? 'Sending...' : 'Send Message'}
-                  </button>
-                </div>
-              )}
-
-              {/* Messages list */}
-              <h3 className="font-medium text-slate-800 mb-3">
-                Sent Messages ({messages.length})
-              </h3>
-
-              {messages.length > 0 ? (
-                <div className="space-y-3">
-                  {messages.map((message) => (
-                    <div
-                      key={message.id}
-                      className={`p-4 rounded-xl ${
-                        message.is_private ? 'bg-purple-50 border border-purple-100' : 'bg-slate-50'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 mb-2 flex-wrap">
-                        {message.is_private ? (
-                          <Lock className="w-4 h-4 text-purple-600" />
-                        ) : (
-                          <Globe className="w-4 h-4 text-slate-400" />
-                        )}
-                        <span className="text-sm text-slate-500">
-                          {format(new Date(message.created_at), 'MMM d, yyyy h:mm a')}
-                        </span>
-                        {message.is_private && (
-                          <span className="badge bg-purple-100 text-purple-700 text-xs">
-                            To: {message.recipient?.full_name || 'Learner'}
-                          </span>
-                        )}
-                        {!message.is_private && (
-                          <span className="badge badge-slate text-xs">
-                            Public - All Learners
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-slate-700 whitespace-pre-wrap">
-                        {message.message}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-slate-500">
-                  <MessageSquare className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                  <p>No messages sent yet</p>
-                </div>
-              )}
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Edit Modal */}
-      {showEditModal && (
-        <EditClassModal
-          session={sessionData}
-          onClose={() => setShowEditModal(false)}
-          onSuccess={() => {
-            setShowEditModal(false)
-            refreshSession()
-            onUpdate()
-          }}
-        />
-      )}
-
-      {/* Reschedule Modal */}
-      {showRescheduleModal && (
-        <RescheduleModal
-          session={sessionData}
-          onClose={() => setShowRescheduleModal(false)}
-          onSuccess={() => {
-            setShowRescheduleModal(false)
-            refreshSession()
-            onUpdate()
-          }}
-        />
-      )}
-
-      {/* Cancel Modal */}
-      {showCancelModal && (
-        <CancelClassModal
-          session={sessionData}
-          onClose={() => setShowCancelModal(false)}
-          onSuccess={() => {
-            setShowCancelModal(false)
-            refreshSession()
-            onUpdate()
-          }}
-        />
-      )}
-    </div>
-  )
-}
-
-/* ======================== */
-/* SCHEDULE MODAL           */
-/* ======================== */
-
 function ScheduleModal({ profile, onClose, onSuccess }) {
   const [topic, setTopic] = useState('')
   const [audience, setAudience] = useState('')
@@ -1184,21 +288,18 @@ function ScheduleModal({ profile, onClose, onSuccess }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    
     if (!topic || !audience || !startDate) {
       alert('Please fill in Topic, Audience, and Start Date')
       return
     }
-
     setSaving(true)
-
     try {
       const { error } = await supabase
         .from('training_sessions')
         .insert({
           trainer_id: profile.id,
-          topic: topic,
-          audience: audience,
+          topic,
+          audience,
           session_date: startDate,
           end_date: endDate || startDate,
           start_time: startTime,
@@ -1206,9 +307,7 @@ function ScheduleModal({ profile, onClose, onSuccess }) {
           location: location || null,
           status: 'scheduled'
         })
-
       if (error) throw error
-
       onSuccess()
     } catch (error) {
       console.error('Error creating session:', error)
@@ -1222,122 +321,53 @@ function ScheduleModal({ profile, onClose, onSuccess }) {
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-5 border-b border-slate-200">
-          <h2 className="font-display text-lg font-semibold text-slate-800">
-            Schedule Class
-          </h2>
+          <h2 className="font-display text-lg font-semibold text-slate-800">Schedule Class</h2>
           <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg">
             <X className="w-5 h-5 text-slate-500" />
           </button>
         </div>
-
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Topic *
-            </label>
-            <select
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              className="input"
-              required
-            >
+            <label className="block text-sm font-medium text-slate-700 mb-2">Topic *</label>
+            <select value={topic} onChange={(e) => setTopic(e.target.value)} className="input" required>
               <option value="">Select a topic</option>
-              {TOPICS.map(t => (
-                <option key={t.id} value={t.id}>{t.label}</option>
-              ))}
+              {TOPICS.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
             </select>
           </div>
-
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Audience *
-            </label>
-            <select
-              value={audience}
-              onChange={(e) => setAudience(e.target.value)}
-              className="input"
-              required
-            >
+            <label className="block text-sm font-medium text-slate-700 mb-2">Audience *</label>
+            <select value={audience} onChange={(e) => setAudience(e.target.value)} className="input" required>
               <option value="">Select audience</option>
-              {AUDIENCES.map(a => (
-                <option key={a.id} value={a.id}>{a.label}</option>
-              ))}
+              {AUDIENCES.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}
             </select>
           </div>
-
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Start Date *
-              </label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="input"
-                required
-              />
+              <label className="block text-sm font-medium text-slate-700 mb-2">Start Date *</label>
+              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="input" required />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                End Date
-              </label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="input"
-                min={startDate}
-              />
-              <p className="text-xs text-slate-500 mt-1">Leave blank for single day</p>
+              <label className="block text-sm font-medium text-slate-700 mb-2">End Date</label>
+              <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="input" min={startDate} />
             </div>
           </div>
-
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Start Time
-              </label>
-              <input
-                type="time"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                className="input"
-              />
+              <label className="block text-sm font-medium text-slate-700 mb-2">Start Time</label>
+              <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="input" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                End Time
-              </label>
-              <input
-                type="time"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                className="input"
-              />
+              <label className="block text-sm font-medium text-slate-700 mb-2">End Time</label>
+              <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="input" />
             </div>
           </div>
-
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Location
-            </label>
-            <input
-              type="text"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              placeholder="Room name, virtual link, etc."
-              className="input"
-            />
+            <label className="block text-sm font-medium text-slate-700 mb-2">Location</label>
+            <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Room name, virtual link, etc." className="input" />
           </div>
-
           <div className="flex gap-3 pt-4">
-            <button type="button" onClick={onClose} className="btn-secondary flex-1">
-              Cancel
-            </button>
-            <button type="submit" disabled={saving} className="btn-primary flex-1">
-              {saving ? 'Creating...' : 'Create Class'}
-            </button>
+            <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
+            <button type="submit" disabled={saving} className="btn-primary flex-1">{saving ? 'Creating...' : 'Create Class'}</button>
           </div>
         </form>
       </div>
@@ -1345,183 +375,356 @@ function ScheduleModal({ profile, onClose, onSuccess }) {
   )
 }
 
-/* ======================== */
-/* EDIT CLASS MODAL         */
-/* ======================== */
+function TrainingDetailView({ session, profile, onBack, onUpdate }) {
+  const [activeTab, setActiveTab] = useState('learners')
+  const [learners, setLearners] = useState([])
+  const [messages, setMessages] = useState([])
+  const [attendance, setAttendance] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [sessionData, setSessionData] = useState(session)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [showCancelModal, setShowCancelModal] = useState(false)
 
-function EditClassModal({ session, onClose, onSuccess }) {
-  const [topic, setTopic] = useState(session.topic || '')
-  const [audience, setAudience] = useState(session.audience || '')
-  const [location, setLocation] = useState(session.location || '')
-  const [startTime, setStartTime] = useState(session.start_time || '09:00')
-  const [endTime, setEndTime] = useState(session.end_time || '17:00')
+  const [newMessage, setNewMessage] = useState('')
+  const [isPrivate, setIsPrivate] = useState(false)
+  const [selectedRecipient, setSelectedRecipient] = useState('')
   const [saving, setSaving] = useState(false)
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    setSaving(true)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState([])
+  const [searching, setSearching] = useState(false)
+  const [showManualEntry, setShowManualEntry] = useState(false)
+  const [manualName, setManualName] = useState('')
+  const [manualEmail, setManualEmail] = useState('')
+  const [manualId, setManualId] = useState('')
 
+  const startDate = parseISO(sessionData.session_date)
+  const endDate = sessionData.end_date ? parseISO(sessionData.end_date) : startDate
+  const isMultiDay = sessionData.end_date && sessionData.end_date !== sessionData.session_date
+  const trainingDays = isMultiDay ? eachDayOfInterval({ start: startDate, end: endDate }) : [startDate]
+  const isCancelled = sessionData.status === 'cancelled'
+
+  useEffect(() => {
+    fetchData()
+  }, [sessionData.id])
+
+  const fetchData = async () => {
     try {
-      const { error } = await supabase
-        .from('training_sessions')
-        .update({
-          topic,
-          audience,
-          location: location || null,
-          start_time: startTime,
-          end_time: endTime
-        })
-        .eq('id', session.id)
+      const { data: learnersData } = await supabase.from('session_enrollments').select('*').eq('session_id', sessionData.id)
+      setLearners(learnersData || [])
 
-      if (error) throw error
+      const { data: messagesData } = await supabase
+        .from('training_messages')
+        .select('*, profiles:sender_id (full_name), recipient:recipient_id (full_name)')
+        .eq('session_id', sessionData.id)
+        .order('created_at', { ascending: false })
+      setMessages(messagesData || [])
 
-      onSuccess()
+      const { data: attendanceData } = await supabase
+        .from('learner_attendance')
+        .select('*, profiles:learner_id (full_name, email)')
+        .eq('session_id', sessionData.id)
+      setAttendance(attendanceData || [])
     } catch (error) {
-      console.error('Error updating class:', error)
-      alert('Failed to update class: ' + error.message)
+      console.error('Error fetching data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const refreshSession = async () => {
+    const { data } = await supabase.from('training_sessions').select('*').eq('id', sessionData.id).single()
+    if (data) setSessionData(data)
+  }
+
+  const handleSearch = async (query) => {
+    setSearchQuery(query)
+    if (query.length < 2) { setSearchResults([]); return }
+    setSearching(true)
+    try {
+      const { data } = await supabase.from('profiles').select('id, full_name, email, role').or(`full_name.ilike.%${query}%,email.ilike.%${query}%`).limit(10)
+      const enrolledIds = learners.map(l => l.learner_id)
+      const enrolledEmails = learners.map(l => l.learner_email)
+      setSearchResults((data || []).filter(u => !enrolledIds.includes(u.id) && !enrolledEmails.includes(u.email)))
+    } catch (error) {
+      console.error('Error searching:', error)
+    } finally {
+      setSearching(false)
+    }
+  }
+
+  const handleAddFromSearch = async (user) => {
+    setSaving(true)
+    try {
+      await supabase.from('session_enrollments').insert({ session_id: sessionData.id, learner_id: user.id, learner_name: user.full_name, learner_email: user.email, status: 'enrolled' })
+      setSearchQuery('')
+      setSearchResults([])
+      fetchData()
+    } catch (error) {
+      alert('Failed to add learner')
     } finally {
       setSaving(false)
     }
   }
 
+  const handleAddManual = async () => {
+    if (!manualName && !manualEmail && !manualId) { alert('Please enter at least a name, email, or ID'); return }
+    setSaving(true)
+    try {
+      await supabase.from('session_enrollments').insert({ session_id: sessionData.id, learner_name: manualName || null, learner_email: manualEmail || null, learner_unique_id: manualId || null, status: 'enrolled' })
+      setManualName(''); setManualEmail(''); setManualId(''); setShowManualEntry(false)
+      fetchData()
+    } catch (error) {
+      alert('Failed to add learner')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleRemoveLearner = async (id) => {
+    if (!confirm('Remove this learner?')) return
+    await supabase.from('session_enrollments').delete().eq('id', id)
+    fetchData()
+  }
+
+  const handleStatusChange = async (id, newStatus) => {
+    await supabase.from('session_enrollments').update({ status: newStatus }).eq('id', id)
+    fetchData()
+  }
+
+  const handleSendMessage = async () => {
+    if (!newMessage.trim()) { alert('Please enter a message'); return }
+    if (isPrivate && !selectedRecipient) { alert('Please select a recipient'); return }
+    setSaving(true)
+    try {
+      await supabase.from('training_messages').insert({ session_id: sessionData.id, sender_id: profile.id, recipient_id: isPrivate ? selectedRecipient : null, message: newMessage.trim(), is_private: isPrivate })
+      setNewMessage(''); setIsPrivate(false); setSelectedRecipient('')
+      fetchData()
+    } catch (error) {
+      alert('Failed to send message')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleCancelClass = async () => {
+    if (!confirm('Are you sure you want to cancel this class?')) return
+    await supabase.from('training_sessions').update({ status: 'cancelled' }).eq('id', sessionData.id)
+    refreshSession()
+    onUpdate()
+  }
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-5 border-b border-slate-200">
-          <h2 className="font-display text-lg font-semibold text-slate-800">
-            Edit Class Details
-          </h2>
-          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg">
-            <X className="w-5 h-5 text-slate-500" />
-          </button>
+    <div className="max-w-5xl mx-auto animate-fade-in">
+      <button onClick={onBack} className="flex items-center gap-2 text-slate-600 hover:text-slate-800 mb-6">
+        <ArrowLeft className="w-5 h-5" /> Back to My Classes
+      </button>
+
+      {isCancelled && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 flex items-center gap-3">
+          <AlertTriangle className="w-5 h-5 text-red-600" />
+          <p className="font-medium text-red-800">This class has been cancelled</p>
         </div>
+      )}
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+      <div className="card p-6 mb-6">
+        <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Topic
-            </label>
-            <select
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              className="input"
-            >
-              <option value="">Select a topic</option>
-              {TOPICS.map(t => (
-                <option key={t.id} value={t.id}>{t.label}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Audience
-            </label>
-            <select
-              value={audience}
-              onChange={(e) => setAudience(e.target.value)}
-              className="input"
-            >
-              <option value="">Select audience</option>
-              {AUDIENCES.map(a => (
-                <option key={a.id} value={a.id}>{a.label}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Start Time
-              </label>
-              <input
-                type="time"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                className="input"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                End Time
-              </label>
-              <input
-                type="time"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                className="input"
-              />
+            <h1 className="font-display text-2xl font-bold text-slate-800 mb-2">{getTopicLabel(sessionData.topic)}</h1>
+            <div className="flex items-center gap-2">
+              <span className="badge badge-blue">{getAudienceLabel(sessionData.audience)}</span>
+              <span className={`badge ${sessionData.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'badge-amber'}`}>{sessionData.status || 'scheduled'}</span>
             </div>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Location
-            </label>
-            <input
-              type="text"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              placeholder="Room name, virtual link, etc."
-              className="input"
-            />
-          </div>
-
-          <div className="flex gap-3 pt-4">
-            <button type="button" onClick={onClose} className="btn-secondary flex-1">
-              Cancel
-            </button>
-            <button type="submit" disabled={saving} className="btn-primary flex-1">
-              {saving ? 'Saving...' : 'Save Changes'}
-            </button>
-          </div>
-        </form>
+          {!isCancelled && (
+            <div className="flex gap-2">
+              <button onClick={() => setShowEditModal(true)} className="btn-secondary text-sm"><Edit className="w-4 h-4 mr-1" />Edit</button>
+              <button onClick={handleCancelClass} className="px-3 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg"><XCircle className="w-4 h-4 mr-1 inline" />Cancel</button>
+            </div>
+          )}
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+          <div><p className="text-slate-500 mb-1">Date</p><p className="font-medium text-slate-800">{format(startDate, 'MMM d, yyyy')}{isMultiDay && ` - ${format(endDate, 'MMM d, yyyy')}`}</p></div>
+          <div><p className="text-slate-500 mb-1">Time</p><p className="font-medium text-slate-800">{formatTime(sessionData.start_time)} - {formatTime(sessionData.end_time)}</p></div>
+          {sessionData.location && <div><p className="text-slate-500 mb-1">Location</p><p className="font-medium text-slate-800">{sessionData.location}</p></div>}
+          <div><p className="text-slate-500 mb-1">Enrolled</p><p className="font-medium text-slate-800">{learners.length} learners</p></div>
+        </div>
       </div>
+
+      <div className="flex gap-2 mb-6">
+        <button onClick={() => setActiveTab('learners')} className={`px-4 py-2 rounded-lg font-medium ${activeTab === 'learners' ? 'bg-brand-100 text-brand-700' : 'text-slate-600 hover:bg-slate-100'}`}>Learners ({learners.length})</button>
+        <button onClick={() => setActiveTab('attendance')} className={`px-4 py-2 rounded-lg font-medium ${activeTab === 'attendance' ? 'bg-brand-100 text-brand-700' : 'text-slate-600 hover:bg-slate-100'}`}>Attendance</button>
+        <button onClick={() => setActiveTab('messages')} className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 ${activeTab === 'messages' ? 'bg-brand-100 text-brand-700' : 'text-slate-600 hover:bg-slate-100'}`}><MessageSquare className="w-4 h-4" />Messages ({messages.length})</button>
+      </div>
+
+      {loading ? (
+        <div className="card p-6"><div className="h-32 bg-slate-100 rounded-xl animate-pulse" /></div>
+      ) : (
+        <>
+          {activeTab === 'learners' && (
+            <div className="card p-6">
+              {!isCancelled && (
+                <div className="bg-slate-50 rounded-xl p-4 mb-6">
+                  <h3 className="font-medium text-slate-800 mb-3">Add Learner</h3>
+                  <div className="relative mb-3">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <input type="text" value={searchQuery} onChange={(e) => handleSearch(e.target.value)} placeholder="Search by name or email..." className="input pl-10" />
+                  </div>
+                  {searchQuery.length >= 2 && (
+                    <div className="mb-3">
+                      {searching ? <p className="text-sm text-slate-500 p-2">Searching...</p> : searchResults.length > 0 ? (
+                        <div className="border border-slate-200 rounded-lg divide-y bg-white max-h-48 overflow-y-auto">
+                          {searchResults.map((user) => (
+                            <div key={user.id} className="flex items-center justify-between p-3 hover:bg-slate-50">
+                              <div><p className="font-medium text-slate-800">{user.full_name}</p><p className="text-sm text-slate-500">{user.email}</p></div>
+                              <button onClick={() => handleAddFromSearch(user)} disabled={saving} className="btn-primary text-sm py-1.5 px-3"><Check className="w-4 h-4 mr-1" />Add</button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : <p className="text-sm text-slate-500 p-2">No users found</p>}
+                    </div>
+                  )}
+                  <button onClick={() => setShowManualEntry(!showManualEntry)} className="text-sm text-brand-600 font-medium">{showManualEntry ? 'Hide manual entry' : 'Or add manually...'}</button>
+                  {showManualEntry && (
+                    <div className="mt-3 pt-3 border-t border-slate-200">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                        <input type="text" value={manualName} onChange={(e) => setManualName(e.target.value)} placeholder="Name" className="input py-2" />
+                        <input type="email" value={manualEmail} onChange={(e) => setManualEmail(e.target.value)} placeholder="Email" className="input py-2" />
+                        <input type="text" value={manualId} onChange={(e) => setManualId(e.target.value)} placeholder="Unique ID" className="input py-2" />
+                      </div>
+                      <button onClick={handleAddManual} disabled={saving} className="btn-primary"><UserPlus className="w-4 h-4 mr-2" />{saving ? 'Adding...' : 'Add Learner'}</button>
+                    </div>
+                  )}
+                </div>
+              )}
+              <h3 className="font-medium text-slate-800 mb-3">Enrolled Learners ({learners.length})</h3>
+              {learners.length > 0 ? (
+                <div className="space-y-2">
+                  {learners.map((learner) => (
+                    <div key={learner.id} className="flex items-center justify-between p-4 border border-slate-200 rounded-xl">
+                      <div>
+                        <p className="font-medium text-slate-800">{learner.learner_name || learner.learner_email || learner.learner_unique_id}</p>
+                        <p className="text-sm text-slate-500">{learner.learner_email}{learner.learner_unique_id && ` • ID: ${learner.learner_unique_id}`}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <select value={learner.status} onChange={(e) => handleStatusChange(learner.id, e.target.value)} className="text-sm border border-slate-200 rounded-lg px-2 py-1" disabled={isCancelled}>
+                          <option value="enrolled">Enrolled</option>
+                          <option value="attended">Attended</option>
+                          <option value="no_show">No Show</option>
+                          <option value="cancelled">Cancelled</option>
+                        </select>
+                        {!isCancelled && <button onClick={() => handleRemoveLearner(learner.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-slate-500"><Users className="w-10 h-10 text-slate-300 mx-auto mb-3" /><p>No learners enrolled yet</p></div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'attendance' && (
+            <div className="card p-6">
+              <h2 className="font-display font-semibold text-slate-800 mb-4">Attendance Records</h2>
+              {trainingDays.map((day) => {
+                const dayAttendance = attendance.filter(a => a.attendance_date === format(day, 'yyyy-MM-dd'))
+                return (
+                  <div key={day.toISOString()} className="mb-6 last:mb-0">
+                    <h3 className={`font-medium mb-3 ${isToday(day) ? 'text-brand-700' : 'text-slate-800'}`}>
+                      {format(day, 'EEEE, MMMM d, yyyy')}{isToday(day) && <span className="text-brand-600 ml-2">(Today)</span>}
+                    </h3>
+                    {dayAttendance.length > 0 ? (
+                      <div className="space-y-2">
+                        {dayAttendance.map((record) => (
+                          <div key={record.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                            <p className="font-medium text-slate-800">{record.profiles?.full_name || 'Learner'}</p>
+                            <span className={`badge ${record.status === 'present' ? 'badge-green' : record.status === 'absent' ? 'bg-red-100 text-red-700' : 'badge-amber'}`}>{record.status}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-500 p-3 bg-slate-50 rounded-lg">No attendance records yet</p>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {activeTab === 'messages' && (
+            <div className="card p-6">
+              {!isCancelled && (
+                <div className="bg-slate-50 rounded-xl p-4 mb-6">
+                  <h3 className="font-medium text-slate-800 mb-3">Send Message</h3>
+                  <textarea value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Write a message..." className="input resize-none h-24 mb-3" />
+                  <div className="flex items-center gap-4 mb-3">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={isPrivate} onChange={(e) => setIsPrivate(e.target.checked)} className="w-4 h-4 rounded border-slate-300 text-brand-600" />
+                      <span className="text-sm text-slate-700">Private message</span>
+                    </label>
+                    {isPrivate && learners.length > 0 && (
+                      <select value={selectedRecipient} onChange={(e) => setSelectedRecipient(e.target.value)} className="input py-2 flex-1">
+                        <option value="">Select recipient...</option>
+                        {learners.filter(l => l.learner_id).map((l) => <option key={l.id} value={l.learner_id}>{l.learner_name || l.learner_email}</option>)}
+                      </select>
+                    )}
+                  </div>
+                  <button onClick={handleSendMessage} disabled={saving} className="btn-primary"><MessageSquare className="w-4 h-4 mr-2" />{saving ? 'Sending...' : 'Send'}</button>
+                </div>
+              )}
+              <h3 className="font-medium text-slate-800 mb-3">Messages ({messages.length})</h3>
+              {messages.length > 0 ? (
+                <div className="space-y-3">
+                  {messages.map((msg) => (
+                    <div key={msg.id} className={`p-4 rounded-xl ${msg.is_private ? 'bg-purple-50 border border-purple-100' : 'bg-slate-50'}`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        {msg.is_private ? <Lock className="w-4 h-4 text-purple-600" /> : <Globe className="w-4 h-4 text-slate-400" />}
+                        <span className="text-sm text-slate-500">{format(new Date(msg.created_at), 'MMM d, h:mm a')}</span>
+                        {msg.is_private && <span className="badge bg-purple-100 text-purple-700 text-xs">To: {msg.recipient?.full_name || 'Learner'}</span>}
+                      </div>
+                      <p className="text-slate-700 whitespace-pre-wrap">{msg.message}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-slate-500"><MessageSquare className="w-10 h-10 text-slate-300 mx-auto mb-3" /><p>No messages yet</p></div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {showEditModal && (
+        <EditModal
+          session={sessionData}
+          onClose={() => setShowEditModal(false)}
+          onSuccess={() => { setShowEditModal(false); refreshSession(); onUpdate() }}
+        />
+      )}
     </div>
   )
 }
 
-/* ======================== */
-/* RESCHEDULE MODAL         */
-/* ======================== */
-
-function RescheduleModal({ session, onClose, onSuccess }) {
+function EditModal({ session, onClose, onSuccess }) {
+  const [topic, setTopic] = useState(session.topic || '')
+  const [audience, setAudience] = useState(session.audience || '')
+  const [location, setLocation] = useState(session.location || '')
   const [startDate, setStartDate] = useState(session.session_date || '')
   const [endDate, setEndDate] = useState(session.end_date || '')
   const [startTime, setStartTime] = useState(session.start_time || '09:00')
   const [endTime, setEndTime] = useState(session.end_time || '17:00')
-  const [notifyLearners, setNotifyLearners] = useState(true)
   const [saving, setSaving] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    
-    if (!startDate) {
-      alert('Please select a start date')
-      return
-    }
-
     setSaving(true)
-
     try {
-      const { error } = await supabase
-        .from('training_sessions')
-        .update({
-          session_date: startDate,
-          end_date: endDate || startDate,
-          start_time: startTime,
-          end_time: endTime
-        })
-        .eq('id', session.id)
-
+      const { error } = await supabase.from('training_sessions').update({ topic, audience, location: location || null, session_date: startDate, end_date: endDate || startDate, start_time: startTime, end_time: endTime }).eq('id', session.id)
       if (error) throw error
-
-      // TODO: If notifyLearners is true, send notification to enrolled learners
-
       onSuccess()
     } catch (error) {
-      console.error('Error rescheduling class:', error)
-      alert('Failed to reschedule class: ' + error.message)
+      alert('Failed to update: ' + error.message)
     } finally {
       setSaving(false)
     }
@@ -1531,195 +734,53 @@ function RescheduleModal({ session, onClose, onSuccess }) {
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-5 border-b border-slate-200">
-          <h2 className="font-display text-lg font-semibold text-slate-800">
-            Reschedule Class
-          </h2>
-          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg">
-            <X className="w-5 h-5 text-slate-500" />
-          </button>
+          <h2 className="font-display text-lg font-semibold text-slate-800">Edit Class</h2>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg"><X className="w-5 h-5 text-slate-500" /></button>
         </div>
-
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-            <p className="text-sm text-amber-800">
-              <strong>Current dates:</strong> {format(parseISO(session.session_date), 'MMM d, yyyy')}
-              {session.end_date && session.end_date !== session.session_date && (
-                <> - {format(parseISO(session.end_date), 'MMM d, yyyy')}</>
-              )}
-            </p>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Topic</label>
+            <select value={topic} onChange={(e) => setTopic(e.target.value)} className="input">
+              <option value="">Select a topic</option>
+              {TOPICS.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+            </select>
           </div>
-
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Audience</label>
+            <select value={audience} onChange={(e) => setAudience(e.target.value)} className="input">
+              <option value="">Select audience</option>
+              {AUDIENCES.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}
+            </select>
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                New Start Date *
-              </label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="input"
-                required
-              />
+              <label className="block text-sm font-medium text-slate-700 mb-2">Start Date</label>
+              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="input" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                New End Date
-              </label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="input"
-                min={startDate}
-              />
+              <label className="block text-sm font-medium text-slate-700 mb-2">End Date</label>
+              <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="input" min={startDate} />
             </div>
           </div>
-
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Start Time
-              </label>
-              <input
-                type="time"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                className="input"
-              />
+              <label className="block text-sm font-medium text-slate-700 mb-2">Start Time</label>
+              <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="input" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                End Time
-              </label>
-              <input
-                type="time"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                className="input"
-              />
+              <label className="block text-sm font-medium text-slate-700 mb-2">End Time</label>
+              <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="input" />
             </div>
           </div>
-
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={notifyLearners}
-              onChange={(e) => setNotifyLearners(e.target.checked)}
-              className="w-4 h-4 rounded border-slate-300 text-brand-600"
-            />
-            <span className="text-sm text-slate-700">Notify enrolled learners about the change</span>
-          </label>
-
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Location</label>
+            <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Room name, virtual link, etc." className="input" />
+          </div>
           <div className="flex gap-3 pt-4">
-            <button type="button" onClick={onClose} className="btn-secondary flex-1">
-              Cancel
-            </button>
-            <button type="submit" disabled={saving} className="btn-primary flex-1">
-              {saving ? 'Rescheduling...' : 'Reschedule'}
-            </button>
+            <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
+            <button type="submit" disabled={saving} className="btn-primary flex-1">{saving ? 'Saving...' : 'Save Changes'}</button>
           </div>
         </form>
-      </div>
-    </div>
-  )
-}
-
-/* ======================== */
-/* CANCEL CLASS MODAL       */
-/* ======================== */
-
-function CancelClassModal({ session, onClose, onSuccess }) {
-  const [reason, setReason] = useState('')
-  const [notifyLearners, setNotifyLearners] = useState(true)
-  const [saving, setSaving] = useState(false)
-
-  const handleCancel = async () => {
-    if (!confirm('Are you sure you want to cancel this class? This cannot be undone.')) {
-      return
-    }
-
-    setSaving(true)
-
-    try {
-      const { error } = await supabase
-        .from('training_sessions')
-        .update({
-          status: 'cancelled'
-        })
-        .eq('id', session.id)
-
-      if (error) throw error
-
-      // TODO: If notifyLearners is true, send notification to enrolled learners with reason
-
-      onSuccess()
-    } catch (error) {
-      console.error('Error cancelling class:', error)
-      alert('Failed to cancel class: ' + error.message)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-lg">
-        <div className="flex items-center justify-between p-5 border-b border-slate-200">
-          <h2 className="font-display text-lg font-semibold text-red-700">
-            Cancel Class
-          </h2>
-          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg">
-            <X className="w-5 h-5 text-slate-500" />
-          </button>
-        </div>
-
-        <div className="p-5 space-y-4">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex gap-3">
-            <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="font-medium text-red-800">This action cannot be undone</p>
-              <p className="text-sm text-red-700 mt-1">
-                Cancelling this class will mark it as cancelled and notify all enrolled learners.
-              </p>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Reason for cancellation (optional)
-            </label>
-            <textarea
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="Let learners know why the class is being cancelled..."
-              className="input resize-none h-24"
-            />
-          </div>
-
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={notifyLearners}
-              onChange={(e) => setNotifyLearners(e.target.checked)}
-              className="w-4 h-4 rounded border-slate-300 text-brand-600"
-            />
-            <span className="text-sm text-slate-700">Notify enrolled learners</span>
-          </label>
-
-          <div className="flex gap-3 pt-4">
-            <button onClick={onClose} className="btn-secondary flex-1">
-              Keep Class
-            </button>
-            <button 
-              onClick={handleCancel} 
-              disabled={saving} 
-              className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-medium rounded-xl transition-colors"
-            >
-              {saving ? 'Cancelling...' : 'Cancel Class'}
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   )
