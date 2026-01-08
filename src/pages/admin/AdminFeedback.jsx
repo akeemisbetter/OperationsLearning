@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
-import { MessageCircle, Star, Filter, ArrowLeft, TrendingUp, ThumbsUp, ThumbsDown } from 'lucide-react'
+import { MessageCircle, Star, Filter, ArrowLeft, ThumbsUp, ThumbsDown } from 'lucide-react'
 import { format } from 'date-fns'
 import { Link } from 'react-router-dom'
 
@@ -59,13 +59,13 @@ function AdminFeedback() {
     avgRating: feedback.length > 0
       ? (feedback.reduce((sum, f) => sum + (f.rating || 0), 0) / feedback.length).toFixed(1)
       : 0,
-    avgTrainerRating: feedback.length > 0
+    avgTrainerRating: feedback.filter(f => f.trainer_rating).length > 0
       ? (feedback.reduce((sum, f) => sum + (f.trainer_rating || 0), 0) / feedback.filter(f => f.trainer_rating).length).toFixed(1)
       : 0,
-    avgContentRating: feedback.length > 0
+    avgContentRating: feedback.filter(f => f.content_rating).length > 0
       ? (feedback.reduce((sum, f) => sum + (f.content_rating || 0), 0) / feedback.filter(f => f.content_rating).length).toFixed(1)
       : 0,
-    wouldRecommend: feedback.filter(f => f.would_recommend).length,
+    wouldRecommend: feedback.filter(f => f.would_recommend === true).length,
     wouldNotRecommend: feedback.filter(f => f.would_recommend === false).length
   }
 
@@ -94,7 +94,6 @@ function AdminFeedback() {
         </div>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         <div className="card p-4 text-center">
           <p className="text-2xl font-bold text-slate-800">{stats.total}</p>
@@ -131,7 +130,6 @@ function AdminFeedback() {
         </div>
       </div>
 
-      {/* Filter */}
       <div className="card p-4 mb-6">
         <div className="flex items-center gap-4">
           <Filter className="w-5 h-5 text-slate-400" />
@@ -148,7 +146,6 @@ function AdminFeedback() {
         </div>
       </div>
 
-      {/* Feedback List */}
       <div className="card">
         <div className="p-5 border-b border-slate-200">
           <h2 className="font-display font-semibold text-slate-800">
@@ -201,7 +198,6 @@ function AdminFeedback() {
                   </div>
                 </div>
 
-                {/* Detailed Ratings */}
                 <div className="grid grid-cols-3 gap-4 mb-3 p-3 bg-slate-50 rounded-lg">
                   <div className="text-center">
                     <p className="text-xs text-slate-500 mb-1">Trainer</p>
