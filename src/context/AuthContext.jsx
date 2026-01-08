@@ -11,7 +11,6 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
       if (session?.user) {
@@ -24,7 +23,6 @@ export function AuthProvider({ children }) {
       setLoading(false)
     })
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         setUser(session?.user ?? null)
@@ -50,7 +48,6 @@ export function AuthProvider({ children }) {
 
       if (error) {
         console.error('Error fetching profile:', error)
-        // Still set loading to false even if profile fetch fails
         setProfile(null)
       } else {
         setProfile(data)
@@ -110,14 +107,3 @@ export function AuthProvider({ children }) {
     </AuthContext.Provider>
   )
 }
-```
-
-**Then try:**
-1. Clear your browser cache (Ctrl+Shift+Delete)
-2. Go to your app URL
-3. Open DevTools (F12) → Console tab
-4. Check if there are any error messages
-
-If it's still loading forever, try going directly to `/login`:
-```
-https://your-app-url.onrender.com/login
