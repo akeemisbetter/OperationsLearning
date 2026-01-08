@@ -1,8 +1,26 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
-import { Calendar as CalendarIcon, Clock, MapPin, User, ChevronLeft, ChevronRight } from 'lucide-react'
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths } from 'date-fns'
+import { Calendar as CalendarIcon, Clock, MapPin, ChevronLeft, ChevronRight } from 'lucide-react'
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, parseISO } from 'date-fns'
+
+// Helper to format time in 12-hour format
+const formatTime = (timeStr) => {
+  if (!timeStr) return 'TBD'
+  const [hours, minutes] = timeStr.split(':')
+  const date = new Date()
+  date.setHours(parseInt(hours), parseInt(minutes))
+  return format(date, 'h:mm a')
+}
+
+const TOPICS = {
+  hrp_navigation: 'HRP Navigation',
+  hr_answers_standard: 'HR Answers Standard',
+  hr_answers_adhoc: 'HR Answers Adhoc',
+  dlp_role_specific: 'DLP-Role Specific',
+  learninglab: 'LearningLab',
+  refresher: 'Refresher',
+}
 
 function TrainingCalendar() {
   const { profile, isTrainer } = useAuth()
@@ -45,13 +63,14 @@ function TrainingCalendar() {
               topic,
               audience,
               session_date,
+              end_date,
               start_time,
               end_time,
               location,
               status
             )
           `)
-          .eq('learner_email', profile.email)
+          .or(`learner_id.eq.${profile.id},learner_email.eq.${profile.email}`)
 
         if (error) throw error
 
@@ -84,17 +103,7 @@ function TrainingCalendar() {
 
   const selectedSessions = getSessionsForDate(selectedDate)
 
-  const getTopicLabel = (topic) => {
-    const topics = {
-      hrp_navigation: 'HRP Navigation',
-      hr_answers_standard: 'HR Answers Standard',
-      hr_answers_adhoc: 'HR Answers Adhoc',
-      dlp_role_specific: 'DLP-Role Specific',
-      learninglab: 'LearningLab',
-      refresher: 'Refresher',
-    }
-    return topics[topic] || topic || 'Training Session'
-  }
+  const getTopicLabel = (topic) => TOPICS[topic] || topic || 'Training Session'
 
   const getAudienceColor = (audience) => {
     if (audience === 'internal') return 'bg-blue-500'
@@ -111,7 +120,7 @@ function TrainingCalendar() {
         </h1>
         <p className="text-slate-500">
           {isTrainer 
-            ? 'View your scheduled training sessions' 
+            ? 'View your scheduled training classes' 
             : 'View training sessions you are enrolled in'}
         </p>
       </div>
@@ -224,29 +233,41 @@ function TrainingCalendar() {
             </div>
           ) : selectedSessions.length > 0 ? (
             <div className="space-y-3">
-              {selectedSessions.map((session) => (
-                <div
-                  key={session.id}
-                  className="p-4 rounded-xl border border-slate-200 hover:border-brand-200 transition-colors"
-                >
-                  <div className={`w-2 h-2 rounded-full ${getAudienceColor(session.audience)} mb-2`} />
-                  <h4 className="font-medium text-slate-800 mb-2">
-                    {getTopicLabel(session.topic)}
-                  </h4>
-                  <div className="space-y-1 text-sm text-slate-500">
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4" />
-                      {session.start_time?.slice(0, 5)} - {session.end_time?.slice(0, 5) || 'TBD'}
-                    </div>
-                    {session.location && (
+              {selectedSessions.map((session) => {
+                const startDate = parseISO(session.session_date)
+                const endDate = session.end_date ? parseISO(session.end_date) : null
+                const isMultiDay = endDate && session.end_date !== session.session_date
+
+                return (
+                  <div
+                    key={session.id}
+                    className="p-4 rounded-xl border border-slate-200 hover:border-brand-200 transition-colors"
+                  >
+                    <div className={`w-2 h-2 rounded-full ${getAudienceColor(session.audience)} mb-2`} />
+                    <h4 className="font-medium text-slate-800 mb-2">
+                      {getTopicLabel(session.topic)}
+                    </h4>
+                    <div className="space-y-1 text-sm text-slate-500">
                       <div className="flex items-center gap-2">
-                        <MapPin className="w-4 h-4" />
-                        {session.location}
+                        <Clock className="w-4 h-4" />
+                        {formatTime(session.start_time)} - {formatTime(session.end_time)}
                       </div>
-                    )}
+                      {isMultiDay && (
+                        <div className="flex items-center gap-2">
+                          <CalendarIcon className="w-4 h-4" />
+                          {format(startDate, 'MMM d')} - {format(endDate, 'MMM d, yyyy')}
+                        </div>
+                      )}
+                      {session.location && (
+                        <div className="flex items-center gap-2">
+                          <MapPin className="w-4 h-4" />
+                          {session.location}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           ) : (
             <div className="text-center py-8">
