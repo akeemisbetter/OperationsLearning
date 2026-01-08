@@ -11,16 +11,13 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Get initial session
     checkUser()
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         setUser(session?.user ?? null)
         
         if (session?.user) {
-          // Small delay to ensure database is ready
           setTimeout(() => {
             fetchProfile(session.user.id)
           }, 100)
@@ -37,7 +34,6 @@ export function AuthProvider({ children }) {
   const checkUser = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      
       setUser(session?.user ?? null)
       
       if (session?.user) {
@@ -60,10 +56,68 @@ export function AuthProvider({ children }) {
         .single()
 
       if (error) {
-        console.error('Error fetching profile:', error)
+        console.error('Profile error:', error)
         setProfile(null)
       } else {
         setProfile(data)
       }
     } catch (error) {
-      console.error('Err
+      console.error('Fetch error:', error)
+      setProfile(null)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const signIn = async (email, password) => {
+    setLoading(true)
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+    if (error) {
+      setLoading(false)
+    }
+    return { data, error }
+  }
+
+  const signUp = async (email, password, metadata = {}) => {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: metadata,
+      },
+    })
+    return { data, error }
+  }
+
+  const signOut = async () => {
+    setLoading(true)
+    const { error } = await supabase.auth.signOut()
+    if (!error) {
+      setUser(null)
+      setProfile(null)
+    }
+    setLoading(false)
+    return { error }
+  }
+
+  const value = {
+    user,
+    profile,
+    loading,
+    signIn,
+    signUp,
+    signOut,
+    isTrainer: profile?.role === 'trainer' || profile?.role === 'manager',
+    isManager: profile?.role === 'manager',
+    isLearner: profile?.role === 'learner',
+  }
+
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  )
+}
