@@ -6,9 +6,6 @@ import {
   MessageCircle, Star, ArrowRight, BarChart3, CheckCircle2
 } from 'lucide-react'
 import { format, parseISO, subMonths, startOfMonth, endOfMonth } from 'date-fns'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, Legend } from 'recharts'
-
-const CHART_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4']
 
 const TOPICS = {
   hrp_navigation: 'HRP Navigation',
@@ -29,10 +26,8 @@ const CLIENTS = {
 function AdminDashboard() {
   const [stats, setStats] = useState({})
   const [recentFeedback, setRecentFeedback] = useState([])
-  const [monthlyTrend, setMonthlyTrend] = useState([])
-  const [sessionsByClient, setSessionsByClient] = useState([])
-  const [sessionsByTopic, setSessionsByTopic] = useState([])
   const [topTrainers, setTopTrainers] = useState([])
+  const [sessionsByClient, setSessionsByClient] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -65,24 +60,6 @@ function AdminDashboard() {
       // Recent feedback
       setRecentFeedback((feedback || []).slice(0, 5))
 
-      // Monthly trend (last 6 months)
-      const today = new Date()
-      const trend = []
-      for (let i = 5; i >= 0; i--) {
-        const monthStart = startOfMonth(subMonths(today, i))
-        const monthEnd = endOfMonth(subMonths(today, i))
-        const monthSessions = (sessions || []).filter(s => {
-          const sessionDate = parseISO(s.session_date)
-          return sessionDate >= monthStart && sessionDate <= monthEnd
-        })
-        trend.push({
-          month: format(monthStart, 'MMM'),
-          sessions: monthSessions.length,
-          enrollments: monthSessions.reduce((sum, s) => sum + (s.session_enrollments?.length || 0), 0)
-        })
-      }
-      setMonthlyTrend(trend)
-
       // Sessions by client
       const clientCounts = {}
       ;(sessions || []).forEach(s => {
@@ -93,17 +70,6 @@ function AdminDashboard() {
         name: CLIENTS[client] || client,
         value: count
       })))
-
-      // Sessions by topic
-      const topicCounts = {}
-      ;(sessions || []).forEach(s => {
-        const topic = s.topic || 'unknown'
-        topicCounts[topic] = (topicCounts[topic] || 0) + 1
-      })
-      setSessionsByTopic(Object.entries(topicCounts).map(([topic, count]) => ({
-        name: TOPICS[topic] || topic,
-        value: count
-      })).sort((a, b) => b.value - a.value))
 
       // Top trainers by session count
       const { data: trainerStats } = await supabase
@@ -177,86 +143,7 @@ function AdminDashboard() {
         <StatCard icon={Star} label="Avg Rating" value={stats.avgRating} color="orange" />
       </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        {/* Monthly Trend */}
-        <div className="card p-6">
-          <h3 className="font-display font-semibold text-slate-800 mb-4 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-brand-600" />
-            Training Trend (Last 6 Months)
-          </h3>
-          {monthlyTrend.length > 0 ? (
-            <ResponsiveContainer width="100%" height={250}>
-              <LineChart data={monthlyTrend}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="month" stroke="#64748b" fontSize={12} />
-                <YAxis stroke="#64748b" fontSize={12} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#fff',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px',
-                    fontSize: '12px'
-                  }}
-                />
-                <Legend />
-                <Line type="monotone" dataKey="sessions" stroke="#3b82f6" strokeWidth={2} name="Sessions" />
-                <Line type="monotone" dataKey="enrollments" stroke="#10b981" strokeWidth={2} name="Enrollments" />
-              </LineChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-[250px] flex items-center justify-center text-slate-400">No data</div>
-          )}
-        </div>
-
-        {/* Sessions by Client */}
-        <div className="card p-6">
-          <h3 className="font-display font-semibold text-slate-800 mb-4 flex items-center gap-2">
-            <BarChart3 className="w-5 h-5 text-brand-600" />
-            Sessions by Client
-          </h3>
-          {sessionsByClient.length > 0 ? (
-            <div className="flex items-center gap-4">
-              <ResponsiveContainer width="50%" height={200}>
-                <PieChart>
-                  <Pie
-                    data={sessionsByClient}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={40}
-                    outerRadius={80}
-                    paddingAngle={2}
-                    dataKey="value"
-                  >
-                    {sessionsByClient.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="flex-1 space-y-2">
-                {sessionsByClient.map((item, index) => (
-                  <div key={item.name} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }}
-                      />
-                      <span className="text-sm text-slate-600">{item.name}</span>
-                    </div>
-                    <span className="text-sm font-medium text-slate-800">{item.value}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="h-[200px] flex items-center justify-center text-slate-400">No data</div>
-          )}
-        </div>
-      </div>
-
-      {/* Second Row */}
+      {/* Content Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         {/* Top Trainers */}
         <div className="card p-6">
@@ -285,21 +172,20 @@ function AdminDashboard() {
           )}
         </div>
 
-        {/* Sessions by Topic */}
+        {/* Sessions by Client */}
         <div className="card p-6">
-          <h3 className="font-display font-semibold text-slate-800 mb-4">Sessions by Topic</h3>
-          {sessionsByTopic.length > 0 ? (
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={sessionsByTopic} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis type="number" stroke="#64748b" fontSize={12} />
-                <YAxis dataKey="name" type="category" stroke="#64748b" fontSize={10} width={80} />
-                <Tooltip />
-                <Bar dataKey="value" fill="#8b5cf6" radius={[0, 4, 4, 0]} name="Sessions" />
-              </BarChart>
-            </ResponsiveContainer>
+          <h3 className="font-display font-semibold text-slate-800 mb-4">Sessions by Client</h3>
+          {sessionsByClient.length > 0 ? (
+            <div className="space-y-3">
+              {sessionsByClient.map((item, index) => (
+                <div key={item.name} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                  <span className="font-medium text-slate-800">{item.name}</span>
+                  <span className="text-sm font-bold text-brand-600">{item.value} sessions</span>
+                </div>
+              ))}
+            </div>
           ) : (
-            <div className="h-[200px] flex items-center justify-center text-slate-400">No data</div>
+            <div className="text-center py-8 text-slate-400">No data</div>
           )}
         </div>
 
