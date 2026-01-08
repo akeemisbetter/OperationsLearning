@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
-import { Calendar, Search, Users, Clock, Filter, ArrowLeft } from 'lucide-react'
+import { Calendar, Search, Users, Clock, ArrowLeft } from 'lucide-react'
 import { format, parseISO, isBefore } from 'date-fns'
 import { Link } from 'react-router-dom'
 
@@ -71,14 +71,8 @@ function AdminSessions() {
 
   const filteredSessions = sessions.filter(s => {
     const status = getSessionStatus(s)
-    
-    // Status filter
     if (filterStatus !== 'all' && status !== filterStatus) return false
-    
-    // Client filter
     if (filterClient && s.client !== filterClient) return false
-    
-    // Search
     if (search) {
       const searchLower = search.toLowerCase()
       const topicLabel = TOPICS[s.topic] || s.topic || ''
@@ -88,7 +82,6 @@ function AdminSessions() {
         trainerName.toLowerCase().includes(searchLower)
       )
     }
-    
     return true
   })
 
@@ -111,7 +104,6 @@ function AdminSessions() {
         </div>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-4 gap-4 mb-6">
         <div className="card p-4 text-center">
           <p className="text-2xl font-bold text-slate-800">{stats.total}</p>
@@ -131,7 +123,6 @@ function AdminSessions() {
         </div>
       </div>
 
-      {/* Filters */}
       <div className="card p-4 mb-6">
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1 relative">
@@ -167,7 +158,6 @@ function AdminSessions() {
         </div>
       </div>
 
-      {/* Sessions List */}
       <div className="card">
         <div className="p-5 border-b border-slate-200">
           <h2 className="font-display font-semibold text-slate-800">
