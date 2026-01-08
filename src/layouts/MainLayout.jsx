@@ -1,154 +1,192 @@
 import { useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import {
   LayoutDashboard,
   Calendar,
   BookOpen,
-  MessageSquare,
+  Megaphone,
   GraduationCap,
-  Users,
-  FileText,
-  Bell,
+  MessageSquare,
+  ClipboardList,
+  HelpCircle,
+  LogOut,
   Menu,
   X,
-  LogOut
+  ChevronDown,
+  User,
+  Users,
+  Settings,
+  BarChart3,
+  MessageCircle
 } from 'lucide-react'
 
-function MainLayout({ children }) {
-  const { profile, signOut, isTrainer } = useAuth()
-  const location = useLocation()
+function Layout() {
+  const { profile, signOut, isTrainer, isLearner, isAdmin } = useAuth()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
 
   const handleSignOut = async () => {
     await signOut()
     navigate('/login')
   }
 
-  const learnerNav = [
-    { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-    { name: 'My Learning', href: '/my-learning', icon: GraduationCap },
-    { name: 'Training Calendar', href: '/calendar', icon: Calendar },
-    { name: 'Ask a Trainer', href: '/ask-trainer', icon: MessageSquare },
-    { name: 'Resources', href: '/resources', icon: FileText },
-    { name: 'Announcements', href: '/announcements', icon: Bell },
+  const navItems = isAdmin ? [
+    { to: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
+    { to: '/admin/trainers', icon: GraduationCap, label: 'Trainers' },
+    { to: '/admin/learners', icon: Users, label: 'Learners' },
+    { to: '/admin/sessions', icon: Calendar, label: 'All Sessions' },
+    { to: '/admin/feedback', icon: MessageCircle, label: 'Feedback' },
+    { to: '/announcements', icon: Megaphone, label: 'Announcements' },
+    { to: '/resources', icon: BookOpen, label: 'Resources' },
+  ] : isTrainer ? [
+    { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+    { to: '/trainer/tracking', icon: ClipboardList, label: 'My Classes' },
+    { to: '/trainer/learner-questions', icon: HelpCircle, label: 'Questions' },
+    { to: '/calendar', icon: Calendar, label: 'Calendar' },
+    { to: '/resources', icon: BookOpen, label: 'Resources' },
+    { to: '/announcements', icon: Megaphone, label: 'Announcements' },
+  ] : [
+    { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+    { to: '/my-learning', icon: GraduationCap, label: 'My Learning' },
+    { to: '/ask-trainer', icon: MessageSquare, label: 'Ask a Trainer' },
+    { to: '/calendar', icon: Calendar, label: 'Calendar' },
+    { to: '/resources', icon: BookOpen, label: 'Resources' },
+    { to: '/announcements', icon: Megaphone, label: 'Announcements' },
   ]
-
-  const trainerNav = [
-    { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-    { name: 'My Classes', href: '/trainer/tracking', icon: GraduationCap },
-    { name: 'Training Calendar', href: '/calendar', icon: Calendar },
-    { name: 'Learner Questions', href: '/trainer/learner-questions', icon: Users },
-    { name: 'Resources', href: '/resources', icon: FileText },
-    { name: 'Announcements', href: '/announcements', icon: Bell },
-  ]
-
-  const navigation = isTrainer ? trainerNav : learnerNav
-
-  const NavLink = ({ item }) => {
-    const isActive = location.pathname === item.href
-    return (
-      <Link
-        to={item.href}
-        onClick={() => setSidebarOpen(false)}
-        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-          isActive
-            ? 'bg-brand-100 text-brand-700'
-            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-        }`}
-      >
-        <item.icon className={`w-5 h-5 ${isActive ? 'text-brand-600' : 'text-slate-400'}`} />
-        {item.name}
-      </Link>
-    )
-  }
 
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Mobile header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-slate-200 z-40 px-4 flex items-center justify-between">
+      <div className="lg:hidden bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-accent-500 flex items-center justify-center">
-            <BookOpen className="w-5 h-5 text-white" />
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center">
+            <GraduationCap className="w-5 h-5 text-white" />
           </div>
-          <span className="font-display font-semibold text-slate-800">HRP Learning</span>
+          <span className="font-display font-bold text-slate-800">HRP Learning</span>
         </div>
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="p-2 rounded-lg hover:bg-slate-100"
-        >
-          {sidebarOpen ? (
-            <X className="w-6 h-6 text-slate-600" />
-          ) : (
-            <Menu className="w-6 h-6 text-slate-600" />
-          )}
+        <button onClick={() => setSidebarOpen(true)} className="p-2 hover:bg-slate-100 rounded-lg">
+          <Menu className="w-6 h-6 text-slate-600" />
         </button>
       </div>
 
-      {/* Sidebar */}
-      <aside
-        className={`fixed inset-y-0 left-0 w-64 bg-white border-r border-slate-200 z-50 transform transition-transform duration-200 lg:translate-x-0 ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
-        <div className="flex flex-col h-full">
-          {/* Logo */}
-          <div className="h-16 flex items-center gap-3 px-5 border-b border-slate-100">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500 to-accent-500 flex items-center justify-center shadow-sm">
-              <BookOpen className="w-5 h-5 text-white" />
+      {/* Mobile sidebar overlay */}
+      {sidebarOpen && (
+        <div className="lg:hidden fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
+          <div className="absolute left-0 top-0 bottom-0 w-72 bg-white shadow-xl">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center">
+                  <GraduationCap className="w-5 h-5 text-white" />
+                </div>
+                <span className="font-display font-bold text-slate-800">HRP Learning</span>
+              </div>
+              <button onClick={() => setSidebarOpen(false)} className="p-2 hover:bg-slate-100 rounded-lg">
+                <X className="w-5 h-5 text-slate-600" />
+              </button>
             </div>
-            <div>
-              <span className="font-display font-semibold text-slate-800">HRP Learning</span>
-              <span className="block text-xs text-slate-400">Hub</span>
+            <nav className="p-4 space-y-1">
+              {navItems.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  onClick={() => setSidebarOpen(false)}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
+                      isActive
+                        ? 'bg-brand-50 text-brand-700 font-medium'
+                        : 'text-slate-600 hover:bg-slate-100'
+                    }`
+                  }
+                >
+                  <item.icon className="w-5 h-5" />
+                  {item.label}
+                </NavLink>
+              ))}
+            </nav>
+          </div>
+        </div>
+      )}
+
+      <div className="flex">
+        {/* Desktop sidebar */}
+        <aside className="hidden lg:flex flex-col w-64 min-h-screen bg-white border-r border-slate-200">
+          <div className="p-6 border-b border-slate-200">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center">
+                <GraduationCap className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="font-display font-bold text-slate-800">HRP Learning</h1>
+                <p className="text-xs text-slate-500">Training Hub</p>
+              </div>
             </div>
           </div>
 
-          {/* Navigation */}
-          <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-            {navigation.map((item) => (
-              <NavLink key={item.name} item={item} />
+          <nav className="flex-1 p-4 space-y-1">
+            {navItems.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.to === '/' || item.to === '/admin'}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
+                    isActive
+                      ? 'bg-brand-50 text-brand-700 font-medium'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`
+                }
+              >
+                <item.icon className="w-5 h-5" />
+                {item.label}
+              </NavLink>
             ))}
           </nav>
 
-          {/* User section */}
-          <div className="p-3 border-t border-slate-100">
-            <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-slate-50">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-400 to-accent-400 flex items-center justify-center text-white font-medium">
-                {profile?.full_name?.charAt(0) || 'U'}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-800 truncate">
-                  {profile?.full_name || 'User'}
-                </p>
-                <p className="text-xs text-slate-500 capitalize">{profile?.role || 'Learner'}</p>
-              </div>
+          <div className="p-4 border-t border-slate-200">
+            <div className="relative">
               <button
-                onClick={handleSignOut}
-                className="p-2 rounded-lg hover:bg-slate-200 transition-colors"
-                title="Sign out"
+                onClick={() => setUserMenuOpen(!userMenuOpen)}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-100 transition-colors"
               >
-                <LogOut className="w-4 h-4 text-slate-500" />
+                <div className="w-9 h-9 rounded-full bg-brand-100 flex items-center justify-center">
+                  <User className="w-5 h-5 text-brand-600" />
+                </div>
+                <div className="flex-1 text-left">
+                  <p className="text-sm font-medium text-slate-800 truncate">
+                    {profile?.full_name || 'User'}
+                  </p>
+                  <p className="text-xs text-slate-500 capitalize">{profile?.role || 'Member'}</p>
+                </div>
+                <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} />
               </button>
+
+              {userMenuOpen && (
+                <div className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-xl shadow-lg border border-slate-200 py-2">
+                  <button
+                    onClick={handleSignOut}
+                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    Sign out
+                  </button>
+                </div>
+              )}
             </div>
           </div>
-        </div>
-      </aside>
+        </aside>
 
-      {/* Mobile overlay */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/20 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
-      {/* Main content */}
-      <main className="lg:pl-64 pt-16 lg:pt-0 min-h-screen">
-        <div className="p-4 lg:p-8">{children}</div>
-      </main>
+        {/* Main content */}
+        <main className="flex-1 min-h-screen">
+          <div className="p-4 lg:p-8">
+            <Outlet />
+          </div>
+        </main>
+      </div>
     </div>
   )
 }
 
-export default MainLayout
+export default Layout
