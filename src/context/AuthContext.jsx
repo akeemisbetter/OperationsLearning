@@ -11,31 +11,94 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        fetchProfile(session.user.id)
-      } else {
+    let isMounted = true
+    
+    // Set a timeout to prevent infinite loading
+    const timeout = setTimeout(() => {
+      if (isMounted && loading) {
+        console.warn('Auth loading timeout - forcing completion')
         setLoading(false)
       }
-    }).catch((error) => {
-      console.error('Error getting session:', error)
-      setLoading(false)
-    })
+    }, 5000) // 5 second timeout
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setUser(session?.user ?? null)
+    const initializeAuth = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession()
+        
+        if (error) {
+          console.error('Session error:', error)
+          // Clear any stale session data
+          await supabase.auth.signOut()
+          if (isMounted) {
+            setUser(null)
+            setProfile(null)
+            setLoading(false)
+          }
+          return
+        }
+
         if (session?.user) {
-          await fetchProfile(session.user.id)
+          if (isMounted) {
+            setUser(session.user)
+            await fetchProfile(session.user.id)
+          }
         } else {
+          if (isMounted) {
+            setUser(null)
+            setProfile(null)
+            setLoading(false)
+          }
+        }
+      } catch (error) {
+        console.error('Auth initialization error:', error)
+        if (isMounted) {
+          setUser(null)
           setProfile(null)
           setLoading(false)
         }
       }
+    }
+
+    initializeAuth()
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('Auth state changed:', event)
+        
+        if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
+          if (isMounted) {
+            setUser(null)
+            setProfile(null)
+            setLoading(false)
+          }
+          return
+        }
+
+        if (event === 'TOKEN_REFRESHED') {
+          console.log('Token refreshed successfully')
+        }
+
+        if (session?.user) {
+          if (isMounted) {
+            setUser(session.user)
+            await fetchProfile(session.user.id)
+          }
+        } else {
+          if (isMounted) {
+            setUser(null)
+            setProfile(null)
+            setLoading(false)
+          }
+        }
+      }
     )
 
-    return () => subscription.unsubscribe()
+    return () => {
+      isMounted = false
+      clearTimeout(timeout)
+      subscription.unsubscribe()
+    }
   }, [])
 
   const fetchProfile = async (userId) => {
@@ -61,11 +124,20 @@ export function AuthProvider({ children }) {
   }
 
   const signIn = async (email, password) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-    return { data, error }
+    setLoading(true)
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+      if (error) {
+        setLoading(false)
+      }
+      return { data, error }
+    } catch (error) {
+      setLoading(false)
+      return { data: null, error }
+    }
   }
 
   const signUp = async (email, password, metadata = {}) => {
@@ -80,12 +152,17 @@ export function AuthProvider({ children }) {
   }
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut()
-    if (!error) {
-      setUser(null)
-      setProfile(null)
+    setLoading(true)
+    try {
+      const { error } = await supabase.auth.signOut()
+      if (!error) {
+        setUser(null)
+        setProfile(null)
+      }
+      return { error }
+    } finally {
+      setLoading(false)
     }
-    return { error }
   }
 
   const value = {
