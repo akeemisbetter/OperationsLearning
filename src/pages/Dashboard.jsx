@@ -48,10 +48,12 @@ function Dashboard() {
         setUpcomingSessions(sessions || [])
       } else {
         // Learners see sessions they are enrolled in
+        // Check by learner_id, learner_email, or learner_unique_id
         const { data: enrollments } = await supabase
           .from('session_enrollments')
           .select(`
             session_id,
+            status,
             training_sessions (
               id,
               topic,
@@ -63,13 +65,13 @@ function Dashboard() {
               status
             )
           `)
-          .eq('learner_email', profile.email)
-          .or(`learner_unique_id.eq.${profile.id}`)
+          .or(`learner_id.eq.${profile.id},learner_email.eq.${profile.email}`)
 
         // Filter for upcoming sessions and flatten the data
         const sessions = enrollments
+          ?.filter(e => e.training_sessions && e.training_sessions.session_date >= today)
+          ?.filter(e => e.status === 'enrolled' || e.status === 'attended')
           ?.map(e => e.training_sessions)
-          ?.filter(s => s && s.session_date >= today)
           ?.sort((a, b) => new Date(a.session_date) - new Date(b.session_date))
           ?.slice(0, 5) || []
 
@@ -102,20 +104,18 @@ function Dashboard() {
           openQuestions: questionsCount || 0,
         })
       } else {
-        const { count: completedCount } = await supabase
-          .from('learner_progress')
-          .select('*', { count: 'exact', head: true })
-          .eq('learner_id', profile.id)
-          .eq('status', 'completed')
+        // Count enrolled sessions for learner
+        const { data: enrolledData } = await supabase
+          .from('session_enrollments')
+          .select('id, status')
+          .or(`learner_id.eq.${profile.id},learner_email.eq.${profile.email}`)
 
-        const { count: badgesCount } = await supabase
-          .from('learner_badges')
-          .select('*', { count: 'exact', head: true })
-          .eq('learner_id', profile.id)
+        const enrolled = enrolledData?.filter(e => e.status === 'enrolled').length || 0
+        const attended = enrolledData?.filter(e => e.status === 'attended').length || 0
 
         setStats({
-          completedTrainings: completedCount || 0,
-          badgesEarned: badgesCount || 0,
+          enrolledTrainings: enrolled,
+          completedTrainings: attended,
         })
       }
     } catch (error) {
@@ -153,7 +153,7 @@ function Dashboard() {
         <p className="text-slate-500">
           {isTrainer
             ? "Here's what's happening with your training sessions."
-            : 'Track your progress and continue your learning journey.'}
+            : 'Track your progress and view your upcoming training.'}
         </p>
       </div>
 
@@ -190,26 +190,26 @@ function Dashboard() {
         ) : (
           <>
             <StatCard
-              icon={BookOpen}
-              label="Completed Trainings"
-              value={stats.completedTrainings || 0}
+              icon={Calendar}
+              label="Enrolled Trainings"
+              value={stats.enrolledTrainings || 0}
               color="brand"
             />
             <StatCard
-              icon={Award}
-              label="Badges Earned"
-              value={stats.badgesEarned || 0}
-              color="amber"
+              icon={CheckCircle2}
+              label="Completed"
+              value={stats.completedTrainings || 0}
+              color="emerald"
             />
             <StatCard
               icon={Clock}
               label="Hours Learned"
               value="--"
-              color="emerald"
+              color="amber"
             />
             <StatCard
-              icon={TrendingUp}
-              label="Progress"
+              icon={Award}
+              label="Badges Earned"
               value="--"
               color="purple"
             />
