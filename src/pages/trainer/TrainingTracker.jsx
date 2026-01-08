@@ -22,7 +22,12 @@ const AUDIENCES = [
   { id: 'internal', label: 'Internal' },
   { id: 'external', label: 'External' },
 ]
-
+const CLIENTS = [
+  { id: 'ibx', label: 'IBX' },
+  { id: 'hwc', label: 'HWC' },
+  { id: 'az_blue', label: 'AZ Blue' },
+  { id: 'clover', label: 'Clover' },
+]
 const formatTime = (timeStr) => {
   if (!timeStr) return 'TBD'
   const [hours, minutes] = timeStr.split(':')
@@ -33,6 +38,7 @@ const formatTime = (timeStr) => {
 
 const getTopicLabel = (topicId) => TOPICS.find(t => t.id === topicId)?.label || topicId || 'Training'
 const getAudienceLabel = (audienceId) => AUDIENCES.find(a => a.id === audienceId)?.label || audienceId || 'All'
+const getClientLabel = (clientId) => CLIENTS.find(c => c.id === clientId)?.label || clientId || 'N/A'
 
 function TrainingTracker() {
   const { profile } = useAuth()
