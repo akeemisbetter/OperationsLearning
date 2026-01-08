@@ -19,6 +19,9 @@ export function AuthProvider({ children }) {
       } else {
         setLoading(false)
       }
+    }).catch((error) => {
+      console.error('Error getting session:', error)
+      setLoading(false)
     })
 
     // Listen for auth changes
@@ -45,10 +48,16 @@ export function AuthProvider({ children }) {
         .eq('id', userId)
         .single()
 
-      if (error) throw error
-      setProfile(data)
+      if (error) {
+        console.error('Error fetching profile:', error)
+        // Still set loading to false even if profile fetch fails
+        setProfile(null)
+      } else {
+        setProfile(data)
+      }
     } catch (error) {
       console.error('Error fetching profile:', error)
+      setProfile(null)
     } finally {
       setLoading(false)
     }
@@ -101,3 +110,14 @@ export function AuthProvider({ children }) {
     </AuthContext.Provider>
   )
 }
+```
+
+**Then try:**
+1. Clear your browser cache (Ctrl+Shift+Delete)
+2. Go to your app URL
+3. Open DevTools (F12) → Console tab
+4. Check if there are any error messages
+
+If it's still loading forever, try going directly to `/login`:
+```
+https://your-app-url.onrender.com/login
