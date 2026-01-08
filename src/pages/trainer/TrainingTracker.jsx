@@ -232,27 +232,33 @@ function TrainingTracker() {
 function ScheduleModal({ profile, onClose, onSuccess }) {
   const [topic, setTopic] = useState('')
   const [audience, setAudience] = useState('')
+  const [client, setClient] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [startTime, setStartTime] = useState('09:00')
   const [endTime, setEndTime] = useState('17:00')
-  const [location, setLocation] = useState('')
+  const [notes, setNotes] = useState('')
   const [progressTracking, setProgressTracking] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!topic || !audience || !startDate) { alert('Please fill in Topic, Audience, and Start Date'); return }
+    if (!topic || !audience || !client || !startDate) { 
+      alert('Please fill in Topic, Audience, Client, and Start Date')
+      return 
+    }
     setSaving(true)
     try {
       const { error } = await supabase.from('training_sessions').insert({
         trainer_id: profile.id,
-        topic, audience,
+        topic, 
+        audience,
+        client,
         session_date: startDate,
         end_date: endDate || startDate,
         start_time: startTime,
         end_time: endTime,
-        location: location || null,
+        notes: notes || null,
         status: 'scheduled',
         progress_tracking_enabled: progressTracking
       })
@@ -287,6 +293,13 @@ function ScheduleModal({ profile, onClose, onSuccess }) {
               {AUDIENCES.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}
             </select>
           </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Client *</label>
+            <select value={client} onChange={(e) => setClient(e.target.value)} className="input" required>
+              <option value="">Select client</option>
+              {CLIENTS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+            </select>
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">Start Date *</label>
@@ -307,10 +320,6 @@ function ScheduleModal({ profile, onClose, onSuccess }) {
               <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="input" />
             </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Location</label>
-            <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Room name, virtual link, etc." className="input" />
-          </div>
           
           {/* Progress Tracking Toggle */}
           <div className="bg-purple-50 rounded-xl p-4">
@@ -324,10 +333,21 @@ function ScheduleModal({ profile, onClose, onSuccess }) {
               <div>
                 <span className="font-medium text-slate-800">Enable Progress Tracking</span>
                 <p className="text-sm text-slate-500 mt-1">
-                  Track daily participation, accuracy, and productivity scores for each learner. Add notes and view weekly trends.
+                  Track daily participation, accuracy, and productivity scores for each learner.
                 </p>
               </div>
             </label>
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Notes</label>
+            <textarea 
+              value={notes} 
+              onChange={(e) => setNotes(e.target.value)} 
+              placeholder="Add any additional notes about this class..."
+              className="input resize-none h-24" 
+            />
           </div>
 
           <div className="flex gap-3 pt-4">
@@ -533,13 +553,18 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
             </div>
           )}
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-          <div><p className="text-slate-500 mb-1">Date</p><p className="font-medium text-slate-800">{format(startDate, 'MMM d, yyyy')}{isMultiDay && ` - ${format(endDate, 'MMM d, yyyy')}`}</p></div>
-          <div><p className="text-slate-500 mb-1">Time</p><p className="font-medium text-slate-800">{formatTime(sessionData.start_time)} - {formatTime(sessionData.end_time)}</p></div>
-          {sessionData.location && <div><p className="text-slate-500 mb-1">Location</p><p className="font-medium text-slate-800">{sessionData.location}</p></div>}
-          <div><p className="text-slate-500 mb-1">Enrolled</p><p className="font-medium text-slate-800">{learners.length} learners</p></div>
-        </div>
-      </div>
+<div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+  <div><p className="text-slate-500 mb-1">Date</p><p className="font-medium text-slate-800">{format(startDate, 'MMM d, yyyy')}{isMultiDay && ` - ${format(endDate, 'MMM d, yyyy')}`}</p></div>
+  <div><p className="text-slate-500 mb-1">Time</p><p className="font-medium text-slate-800">{formatTime(sessionData.start_time)} - {formatTime(sessionData.end_time)}</p></div>
+  <div><p className="text-slate-500 mb-1">Client</p><p className="font-medium text-slate-800">{getClientLabel(sessionData.client)}</p></div>
+  <div><p className="text-slate-500 mb-1">Enrolled</p><p className="font-medium text-slate-800">{learners.length} learners</p></div>
+</div>
+{sessionData.notes && (
+  <div className="mt-4 pt-4 border-t border-slate-100">
+    <p className="text-slate-500 text-sm mb-1">Notes</p>
+    <p className="text-slate-700 whitespace-pre-wrap">{sessionData.notes}</p>
+  </div>
+)}
 
       <div className="flex gap-2 mb-6 overflow-x-auto">
         <button onClick={() => setActiveTab('learners')} className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap ${activeTab === 'learners' ? 'bg-brand-100 text-brand-700' : 'text-slate-600 hover:bg-slate-100'}`}>Learners ({learners.length})</button>
@@ -774,22 +799,32 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
 function EditModal({ session, onClose, onSuccess }) {
   const [topic, setTopic] = useState(session.topic || '')
   const [audience, setAudience] = useState(session.audience || '')
-  const [location, setLocation] = useState(session.location || '')
+  const [client, setClient] = useState(session.client || '')
   const [startDate, setStartDate] = useState(session.session_date || '')
   const [endDate, setEndDate] = useState(session.end_date || '')
   const [startTime, setStartTime] = useState(session.start_time || '09:00')
   const [endTime, setEndTime] = useState(session.end_time || '17:00')
+  const [notes, setNotes] = useState(session.notes || '')
   const [progressTracking, setProgressTracking] = useState(session.progress_tracking_enabled || false)
   const [saving, setSaving] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (!client) {
+      alert('Please select a client')
+      return
+    }
     setSaving(true)
     try {
       const { error } = await supabase.from('training_sessions').update({
-        topic, audience, location: location || null,
-        session_date: startDate, end_date: endDate || startDate,
-        start_time: startTime, end_time: endTime,
+        topic, 
+        audience, 
+        client,
+        session_date: startDate, 
+        end_date: endDate || startDate,
+        start_time: startTime, 
+        end_time: endTime,
+        notes: notes || null,
         progress_tracking_enabled: progressTracking
       }).eq('id', session.id)
       if (error) throw error
@@ -820,6 +855,13 @@ function EditModal({ session, onClose, onSuccess }) {
               {AUDIENCES.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}
             </select>
           </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Client *</label>
+            <select value={client} onChange={(e) => setClient(e.target.value)} className="input" required>
+              <option value="">Select client</option>
+              {CLIENTS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+            </select>
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">Start Date</label>
@@ -840,15 +882,20 @@ function EditModal({ session, onClose, onSuccess }) {
               <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="input" />
             </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Location</label>
-            <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Room name, virtual link, etc." className="input" />
-          </div>
           <div className="bg-purple-50 rounded-xl p-4">
             <label className="flex items-center gap-3 cursor-pointer">
               <input type="checkbox" checked={progressTracking} onChange={(e) => setProgressTracking(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-purple-600" />
               <span className="font-medium text-slate-800">Enable Progress Tracking</span>
             </label>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Notes</label>
+            <textarea 
+              value={notes} 
+              onChange={(e) => setNotes(e.target.value)} 
+              placeholder="Add any additional notes..."
+              className="input resize-none h-24" 
+            />
           </div>
           <div className="flex gap-3 pt-4">
             <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
