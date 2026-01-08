@@ -13,6 +13,7 @@ import Dashboard from './pages/Dashboard'
 import TrainingCalendar from './pages/TrainingCalendar'
 import Resources from './pages/Resources'
 import Announcements from './pages/Announcements'
+import Profile from './pages/Profile'
 
 // Trainer pages
 import TrainingTracker from './pages/trainer/TrainingTracker'
@@ -89,6 +90,7 @@ function App() {
         <Route path="calendar" element={<TrainingCalendar />} />
         <Route path="resources" element={<Resources />} />
         <Route path="announcements" element={<Announcements />} />
+        <Route path="profile" element={<Profile />} />
 
         {/* Trainer routes */}
         <Route
