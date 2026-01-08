@@ -6,7 +6,7 @@ import {
   XCircle, ArrowLeft, MessageSquare, User, Lock, Globe,
   ChevronRight
 } from 'lucide-react'
-import { format, eachDayOfInterval, parseISO, isAfter, isBefore, isToday } from 'date-fns'
+import { format, eachDayOfInterval, parseISO, isBefore, isToday } from 'date-fns'
 
 const TOPICS = {
   hrp_navigation: 'HRP Navigation',
@@ -15,6 +15,15 @@ const TOPICS = {
   dlp_role_specific: 'DLP-Role Specific',
   learninglab: 'LearningLab',
   refresher: 'Refresher',
+}
+
+// Helper to format time in 12-hour format
+const formatTime = (timeStr) => {
+  if (!timeStr) return 'TBD'
+  const [hours, minutes] = timeStr.split(':')
+  const date = new Date()
+  date.setHours(parseInt(hours), parseInt(minutes))
+  return format(date, 'h:mm a')
 }
 
 function MyLearning() {
@@ -62,21 +71,23 @@ function MyLearning() {
   }
 
   const today = new Date()
+  today.setHours(0, 0, 0, 0)
   
   const activeEnrollments = enrollments.filter(e => {
     if (!e.training_sessions) return false
     const endDate = e.training_sessions.end_date || e.training_sessions.session_date
-    return (e.status === 'enrolled' || e.status === 'attended') && 
-           !isBefore(parseISO(endDate), today)
+    const endDateObj = parseISO(endDate)
+    endDateObj.setHours(23, 59, 59, 999)
+    return (e.status === 'enrolled' || e.status === 'attended') && !isBefore(endDateObj, today)
   })
 
   const pastEnrollments = enrollments.filter(e => {
     if (!e.training_sessions) return false
     const endDate = e.training_sessions.end_date || e.training_sessions.session_date
-    return e.status === 'attended' || isBefore(parseISO(endDate), today)
+    const endDateObj = parseISO(endDate)
+    endDateObj.setHours(23, 59, 59, 999)
+    return isBefore(endDateObj, today)
   })
-
-  const getTopicLabel = (topic) => TOPICS[topic] || topic || 'Training'
 
   if (selectedTraining) {
     return (
@@ -215,10 +226,13 @@ function TrainingCard({ enrollment, onClick }) {
   if (!session) return null
 
   const startDate = parseISO(session.session_date)
-  const endDate = session.end_date ? parseISO(session.end_date) : startDate
-  const isMultiDay = session.end_date && session.end_date !== session.session_date
+  const endDate = session.end_date ? parseISO(session.end_date) : null
+  const isMultiDay = endDate && session.end_date !== session.session_date
+  
   const today = new Date()
-  const isOngoing = !isBefore(endDate, today) && !isAfter(startDate, today)
+  today.setHours(0, 0, 0, 0)
+  const sessionEndDate = endDate || startDate
+  const isOngoing = !isBefore(sessionEndDate, today) && !isBefore(today, startDate)
 
   return (
     <div
@@ -240,16 +254,21 @@ function TrainingCard({ enrollment, onClick }) {
             <span className="flex items-center gap-1">
               <Calendar className="w-4 h-4" />
               {format(startDate, 'MMM d, yyyy')}
-              {isMultiDay && <> - {format(endDate, 'MMM d, yyyy')}</>}
+              {isMultiDay && <span> - {format(endDate, 'MMM d, yyyy')}</span>}
             </span>
             <span className="flex items-center gap-1">
               <Clock className="w-4 h-4" />
-              {session.start_time?.slice(0, 5)} - {session.end_time?.slice(0, 5)}
+              {formatTime(session.start_time)} - {formatTime(session.end_time)}
             </span>
             <span className="flex items-center gap-1">
               <User className="w-4 h-4" />
               {session.profiles?.full_name || 'Trainer'}
             </span>
+            {isMultiDay && (
+              <span className="badge badge-slate">
+                {eachDayOfInterval({ start: startDate, end: endDate }).length} days
+              </span>
+            )}
           </div>
         </div>
         <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-brand-600 transition-colors" />
@@ -389,13 +408,19 @@ function TrainingDetail({ enrollment, profile, onBack }) {
           <div>
             <p className="text-slate-500 mb-1">Time</p>
             <p className="font-medium text-slate-800">
-              {session.start_time?.slice(0, 5)} - {session.end_time?.slice(0, 5)}
+              {formatTime(session.start_time)} - {formatTime(session.end_time)}
             </p>
           </div>
           {session.location && (
             <div>
               <p className="text-slate-500 mb-1">Location</p>
               <p className="font-medium text-slate-800">{session.location}</p>
+            </div>
+          )}
+          {isMultiDay && (
+            <div>
+              <p className="text-slate-500 mb-1">Duration</p>
+              <p className="font-medium text-slate-800">{trainingDays.length} days</p>
             </div>
           )}
         </div>
@@ -456,15 +481,52 @@ function TrainingDetail({ enrollment, profile, onBack }) {
               </h2>
               <div className="prose prose-slate max-w-none">
                 <p className="text-slate-600">
-                  This is your {TOPICS[session.topic] || 'training'} session. 
+                  This is your <strong>{TOPICS[session.topic] || 'training'}</strong> session
+                  {session.profiles?.full_name && <> with <strong>{session.profiles.full_name}</strong></>}. 
                   {isMultiDay 
                     ? ` The training spans ${trainingDays.length} days from ${format(startDate, 'MMMM d')} to ${format(endDate, 'MMMM d, yyyy')}.`
                     : ` The training takes place on ${format(startDate, 'MMMM d, yyyy')}.`
                   }
                 </p>
                 <p className="text-slate-600 mt-4">
-                  Please mark your attendance for each training day and check the Messages tab for any communications from your trainer.
+                  <strong>Daily Schedule:</strong> {formatTime(session.start_time)} - {formatTime(session.end_time)}
+                  {session.location && <> at <strong>{session.location}</strong></>}
                 </p>
+                <p className="text-slate-600 mt-4">
+                  Please mark your attendance for each training day using the <strong>Attendance</strong> tab, 
+                  and check the <strong>Messages</strong> tab for any communications from your trainer.
+                </p>
+              </div>
+
+              {/* Quick attendance summary */}
+              <div className="mt-6 pt-6 border-t border-slate-100">
+                <h3 className="font-medium text-slate-800 mb-3">Your Attendance Summary</h3>
+                <div className="flex gap-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-green-500" />
+                    <span className="text-sm text-slate-600">
+                      {attendance.filter(a => a.status === 'present').length} Present
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-red-500" />
+                    <span className="text-sm text-slate-600">
+                      {attendance.filter(a => a.status === 'absent').length} Absent
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-amber-500" />
+                    <span className="text-sm text-slate-600">
+                      {attendance.filter(a => a.status === 'late').length} Late
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-slate-300" />
+                    <span className="text-sm text-slate-600">
+                      {trainingDays.length - attendance.length} Not Marked
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -472,7 +534,7 @@ function TrainingDetail({ enrollment, profile, onBack }) {
           {/* Attendance Tab */}
           {activeTab === 'attendance' && (
             <div className="card p-6">
-              <h2 className="font-display font-semibold text-slate-800 mb-4">
+              <h2 className="font-display font-semibold text-slate-800 mb-2">
                 Mark Your Attendance
               </h2>
               <p className="text-slate-500 text-sm mb-6">
@@ -482,37 +544,39 @@ function TrainingDetail({ enrollment, profile, onBack }) {
               <div className="space-y-3">
                 {trainingDays.map((day) => {
                   const dayAttendance = getAttendanceForDate(day)
-                  const isPastDay = isBefore(day, new Date()) && !isToday(day)
                   const isTodayDate = isToday(day)
+                  const isPast = isBefore(day, new Date()) && !isTodayDate
 
                   return (
                     <div
                       key={day.toISOString()}
-                      className={`flex items-center justify-between p-4 rounded-xl border ${
+                      className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border gap-4 ${
                         isTodayDate 
                           ? 'border-brand-200 bg-brand-50' 
-                          : 'border-slate-200'
+                          : isPast
+                            ? 'border-slate-200 bg-slate-50'
+                            : 'border-slate-200'
                       }`}
                     >
                       <div>
                         <p className="font-medium text-slate-800">
-                          {format(day, 'EEEE, MMMM d')}
+                          {format(day, 'EEEE, MMMM d, yyyy')}
                           {isTodayDate && (
-                            <span className="ml-2 text-brand-600 text-sm">(Today)</span>
+                            <span className="ml-2 text-brand-600 text-sm font-normal">(Today)</span>
                           )}
                         </p>
                         <p className="text-sm text-slate-500">
-                          {session.start_time?.slice(0, 5)} - {session.end_time?.slice(0, 5)}
+                          {formatTime(session.start_time)} - {formatTime(session.end_time)}
                         </p>
                       </div>
 
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleMarkAttendance(day, 'present')}
-                          className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                          className={`flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                             dayAttendance?.status === 'present'
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-slate-100 text-slate-600 hover:bg-green-50 hover:text-green-600'
+                              ? 'bg-green-100 text-green-700 ring-2 ring-green-500'
+                              : 'bg-white border border-slate-200 text-slate-600 hover:bg-green-50 hover:text-green-600 hover:border-green-200'
                           }`}
                         >
                           <CheckCircle2 className="w-4 h-4" />
@@ -520,10 +584,10 @@ function TrainingDetail({ enrollment, profile, onBack }) {
                         </button>
                         <button
                           onClick={() => handleMarkAttendance(day, 'absent')}
-                          className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                          className={`flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                             dayAttendance?.status === 'absent'
-                              ? 'bg-red-100 text-red-700'
-                              : 'bg-slate-100 text-slate-600 hover:bg-red-50 hover:text-red-600'
+                              ? 'bg-red-100 text-red-700 ring-2 ring-red-500'
+                              : 'bg-white border border-slate-200 text-slate-600 hover:bg-red-50 hover:text-red-600 hover:border-red-200'
                           }`}
                         >
                           <XCircle className="w-4 h-4" />
@@ -531,10 +595,10 @@ function TrainingDetail({ enrollment, profile, onBack }) {
                         </button>
                         <button
                           onClick={() => handleMarkAttendance(day, 'late')}
-                          className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                          className={`flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                             dayAttendance?.status === 'late'
-                              ? 'bg-amber-100 text-amber-700'
-                              : 'bg-slate-100 text-slate-600 hover:bg-amber-50 hover:text-amber-600'
+                              ? 'bg-amber-100 text-amber-700 ring-2 ring-amber-500'
+                              : 'bg-white border border-slate-200 text-slate-600 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200'
                           }`}
                         >
                           <Clock className="w-4 h-4" />
@@ -566,7 +630,7 @@ function TrainingDetail({ enrollment, profile, onBack }) {
                           : 'bg-slate-50'
                       }`}
                     >
-                      <div className="flex items-center gap-2 mb-2">
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
                         {message.is_private ? (
                           <Lock className="w-4 h-4 text-purple-600" />
                         ) : (
@@ -576,11 +640,11 @@ function TrainingDetail({ enrollment, profile, onBack }) {
                           {message.profiles?.full_name || 'Trainer'}
                         </span>
                         <span className="text-xs text-slate-400">
-                          {format(new Date(message.created_at), 'MMM d, h:mm a')}
+                          {format(new Date(message.created_at), 'MMM d, yyyy h:mm a')}
                         </span>
                         {message.is_private && (
                           <span className="badge bg-purple-100 text-purple-700 text-xs">
-                            Private
+                            Private Message
                           </span>
                         )}
                       </div>
@@ -595,7 +659,7 @@ function TrainingDetail({ enrollment, profile, onBack }) {
                   <MessageSquare className="w-10 h-10 text-slate-300 mx-auto mb-3" />
                   <p className="text-slate-500">No messages yet</p>
                   <p className="text-sm text-slate-400">
-                    Your trainer will post updates here
+                    Your trainer will post updates and announcements here
                   </p>
                 </div>
               )}
