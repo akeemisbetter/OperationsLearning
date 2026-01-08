@@ -15,9 +15,8 @@ import {
   AlertCircle,
   GraduationCap
 } from 'lucide-react'
-import { format, parseISO } from 'date-fns'
+import { format, parseISO, isBefore } from 'date-fns'
 
-// Helper to format time in 12-hour format
 const formatTime = (timeStr) => {
   if (!timeStr) return 'TBD'
   const [hours, minutes] = timeStr.split(':')
@@ -52,25 +51,53 @@ function Dashboard() {
     if (!profile) return
 
     try {
-      const today = new Date().toISOString().split('T')[0]
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const todayStr = today.toISOString().split('T')[0]
 
       if (isTrainer) {
-        // Trainers see sessions they created
+        // Trainers see sessions they created (excluding cancelled)
         const { data: sessions } = await supabase
           .from('training_sessions')
           .select('*')
           .eq('trainer_id', profile.id)
-          .gte('session_date', today)
+          .neq('status', 'cancelled')  // Exclude cancelled
+          .gte('session_date', todayStr)
           .order('session_date', { ascending: true })
           .limit(5)
 
-        setUpcomingSessions(sessions || [])
+        // Double-check: filter by end_date too (for multi-day sessions that started but haven't ended)
+        const filtered = (sessions || []).filter(s => {
+          const endDate = s.end_date || s.session_date
+          const endDateObj = parseISO(endDate)
+          endDateObj.setHours(23, 59, 59, 999)
+          return !isBefore(endDateObj, today)
+        })
+
+        setUpcomingSessions(filtered)
+
+        // Stats
+        const { count: sessionsCount } = await supabase
+          .from('training_sessions')
+          .select('*', { count: 'exact', head: true })
+          .eq('trainer_id', profile.id)
+          .neq('status', 'cancelled')
+
+        const { count: questionsCount } = await supabase
+          .from('learner_questions')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'open')
+
+        setStats({
+          sessionsDelivered: sessionsCount || 0,
+          openQuestions: questionsCount || 0,
+        })
       } else {
         // Learners see sessions they are enrolled in
         const { data: enrollments } = await supabase
           .from('session_enrollments')
           .select(`
-            session_id,
+            id,
             status,
             training_sessions (
               id,
@@ -86,15 +113,50 @@ function Dashboard() {
           `)
           .or(`learner_id.eq.${profile.id},learner_email.eq.${profile.email}`)
 
-        // Filter for upcoming sessions and flatten the data
-        const sessions = enrollments
-          ?.filter(e => e.training_sessions && e.training_sessions.session_date >= today)
-          ?.filter(e => e.status === 'enrolled' || e.status === 'attended')
-          ?.map(e => e.training_sessions)
-          ?.sort((a, b) => new Date(a.session_date) - new Date(b.session_date))
-          ?.slice(0, 5) || []
+        // Filter: upcoming, not cancelled (both session and enrollment), enrolled status
+        const sessions = (enrollments || [])
+          .filter(e => {
+            if (!e.training_sessions) return false
+            // Exclude cancelled sessions
+            if (e.training_sessions.status === 'cancelled') return false
+            // Exclude cancelled enrollments
+            if (e.status === 'cancelled') return false
+            // Only show enrolled or attended
+            if (e.status !== 'enrolled' && e.status !== 'attended') return false
+            // Check date
+            const endDate = e.training_sessions.end_date || e.training_sessions.session_date
+            const endDateObj = parseISO(endDate)
+            endDateObj.setHours(23, 59, 59, 999)
+            return !isBefore(endDateObj, today)
+          })
+          .map(e => e.training_sessions)
+          .sort((a, b) => new Date(a.session_date) - new Date(b.session_date))
+          .slice(0, 5)
 
         setUpcomingSessions(sessions)
+
+        // Stats for learner
+        const { data: allEnrollments } = await supabase
+          .from('session_enrollments')
+          .select(`
+            id, 
+            status,
+            training_sessions!inner (status)
+          `)
+          .or(`learner_id.eq.${profile.id},learner_email.eq.${profile.email}`)
+
+        const activeEnrollments = (allEnrollments || []).filter(e => 
+          e.training_sessions?.status !== 'cancelled' && 
+          e.status !== 'cancelled'
+        )
+        
+        const enrolled = activeEnrollments.filter(e => e.status === 'enrolled').length
+        const attended = activeEnrollments.filter(e => e.status === 'attended').length
+
+        setStats({
+          enrolledTrainings: enrolled,
+          completedTrainings: attended,
+        })
       }
 
       // Fetch announcements
@@ -105,38 +167,6 @@ function Dashboard() {
         .limit(3)
 
       setAnnouncements(announceData || [])
-
-      // Calculate stats based on role
-      if (isTrainer) {
-        const { count: sessionsCount } = await supabase
-          .from('training_sessions')
-          .select('*', { count: 'exact', head: true })
-          .eq('trainer_id', profile.id)
-
-        const { count: questionsCount } = await supabase
-          .from('learner_questions')
-          .select('*', { count: 'exact', head: true })
-          .eq('status', 'open')
-
-        setStats({
-          sessionsDelivered: sessionsCount || 0,
-          openQuestions: questionsCount || 0,
-        })
-      } else {
-        // Count enrolled sessions for learner
-        const { data: enrolledData } = await supabase
-          .from('session_enrollments')
-          .select('id, status')
-          .or(`learner_id.eq.${profile.id},learner_email.eq.${profile.email}`)
-
-        const enrolled = enrolledData?.filter(e => e.status === 'enrolled').length || 0
-        const attended = enrolledData?.filter(e => e.status === 'attended').length || 0
-
-        setStats({
-          enrolledTrainings: enrolled,
-          completedTrainings: attended,
-        })
-      }
     } catch (error) {
       console.error('Error fetching dashboard data:', error)
     } finally {
@@ -170,58 +200,17 @@ function Dashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {isTrainer ? (
           <>
-            <StatCard
-              icon={Calendar}
-              label="Classes Scheduled"
-              value={stats.sessionsDelivered || 0}
-              color="brand"
-            />
-            <StatCard
-              icon={MessageSquare}
-              label="Open Questions"
-              value={stats.openQuestions || 0}
-              color="amber"
-              alert={stats.openQuestions > 0}
-            />
-            <StatCard
-              icon={Users}
-              label="Learners Trained"
-              value="--"
-              color="emerald"
-            />
-            <StatCard
-              icon={TrendingUp}
-              label="Avg. Rating"
-              value="--"
-              color="purple"
-            />
+            <StatCard icon={Calendar} label="Classes Scheduled" value={stats.sessionsDelivered || 0} color="brand" />
+            <StatCard icon={MessageSquare} label="Open Questions" value={stats.openQuestions || 0} color="amber" alert={stats.openQuestions > 0} />
+            <StatCard icon={Users} label="Learners Trained" value="--" color="emerald" />
+            <StatCard icon={TrendingUp} label="Avg. Rating" value="--" color="purple" />
           </>
         ) : (
           <>
-            <StatCard
-              icon={Calendar}
-              label="Enrolled Trainings"
-              value={stats.enrolledTrainings || 0}
-              color="brand"
-            />
-            <StatCard
-              icon={CheckCircle2}
-              label="Completed"
-              value={stats.completedTrainings || 0}
-              color="emerald"
-            />
-            <StatCard
-              icon={Clock}
-              label="Hours Learned"
-              value="--"
-              color="amber"
-            />
-            <StatCard
-              icon={Award}
-              label="Badges Earned"
-              value="--"
-              color="purple"
-            />
+            <StatCard icon={Calendar} label="Enrolled Trainings" value={stats.enrolledTrainings || 0} color="brand" />
+            <StatCard icon={CheckCircle2} label="Completed" value={stats.completedTrainings || 0} color="emerald" />
+            <StatCard icon={Clock} label="Hours Learned" value="--" color="amber" />
+            <StatCard icon={Award} label="Badges Earned" value="--" color="purple" />
           </>
         )}
       </div>
@@ -233,7 +222,7 @@ function Dashboard() {
             <h2 className="font-display text-lg font-semibold text-slate-800">
               {isTrainer ? 'Your Upcoming Classes' : 'My Upcoming Training'}
             </h2>
-            <Link to={isTrainer ? "/trainer/tracking" : "/calendar"} className="btn-ghost text-sm">
+            <Link to={isTrainer ? "/trainer/tracking" : "/my-learning"} className="btn-ghost text-sm">
               View all <ArrowRight className="w-4 h-4 ml-1" />
             </Link>
           </div>
