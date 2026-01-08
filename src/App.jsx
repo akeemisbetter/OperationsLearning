@@ -54,8 +54,18 @@ function ProtectedRoute({ children, allowedRoles }) {
   return children
 }
 
+// Home redirect based on role
+function HomeRedirect() {
+  const { profile } = useAuth()
+  
+  if (profile?.role === 'admin') {
+    return <Navigate to="/admin" replace />
+  }
+  return <Navigate to="/dashboard" replace />
+}
+
 function App() {
-  const { loading, isAdmin } = useAuth()
+  const { loading } = useAuth()
 
   if (loading) return <LoadingScreen />
 
@@ -74,7 +84,7 @@ function App() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to={isAdmin ? "/admin" : "/dashboard"} replace />} />
+        <Route index element={<HomeRedirect />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="calendar" element={<TrainingCalendar />} />
         <Route path="resources" element={<Resources />} />
