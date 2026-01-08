@@ -397,7 +397,11 @@ function ScheduleModal({ profile, onClose, onSuccess }) {
 /* ======================== */
 
 function LearnersModal({ session, onClose }) {
+  const { profile } = useAuth()
+  const [activeTab, setActiveTab] = useState('learners')
   const [learners, setLearners] = useState([])
+  const [messages, setMessages] = useState([])
+  const [attendance, setAttendance] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   
@@ -412,21 +416,50 @@ function LearnersModal({ session, onClose }) {
   const [manualEmail, setManualEmail] = useState('')
   const [manualId, setManualId] = useState('')
 
+  // Message state
+  const [newMessage, setNewMessage] = useState('')
+  const [isPrivate, setIsPrivate] = useState(false)
+  const [selectedRecipient, setSelectedRecipient] = useState('')
+
   useEffect(() => {
-    fetchLearners()
+    fetchData()
   }, [session.id])
 
-  const fetchLearners = async () => {
+  const fetchData = async () => {
     try {
-      const { data, error } = await supabase
+      // Fetch learners
+      const { data: learnersData } = await supabase
         .from('session_enrollments')
         .select('*')
         .eq('session_id', session.id)
 
-      if (error) throw error
-      setLearners(data || [])
+      setLearners(learnersData || [])
+
+      // Fetch messages
+      const { data: messagesData } = await supabase
+        .from('training_messages')
+        .select(`
+          *,
+          profiles:sender_id (full_name),
+          recipient:recipient_id (full_name)
+        `)
+        .eq('session_id', session.id)
+        .order('created_at', { ascending: false })
+
+      setMessages(messagesData || [])
+
+      // Fetch attendance
+      const { data: attendanceData } = await supabase
+        .from('learner_attendance')
+        .select(`
+          *,
+          profiles:learner_id (full_name)
+        `)
+        .eq('session_id', session.id)
+
+      setAttendance(attendanceData || [])
     } catch (error) {
-      console.error('Error fetching learners:', error)
+      console.error('Error fetching data:', error)
     } finally {
       setLoading(false)
     }
@@ -451,7 +484,6 @@ function LearnersModal({ session, onClose }) {
 
       if (error) throw error
       
-      // Filter out users already enrolled
       const enrolledIds = learners.map(l => l.learner_id)
       const enrolledEmails = learners.map(l => l.learner_email)
       const filtered = data.filter(u => 
@@ -466,7 +498,6 @@ function LearnersModal({ session, onClose }) {
     }
   }
 
-  // Add user from search results
   const handleAddFromSearch = async (user) => {
     setSaving(true)
     try {
@@ -484,7 +515,7 @@ function LearnersModal({ session, onClose }) {
 
       setSearchQuery('')
       setSearchResults([])
-      fetchLearners()
+      fetchData()
     } catch (error) {
       console.error('Error adding learner:', error)
       alert('Failed to add learner: ' + error.message)
@@ -493,7 +524,6 @@ function LearnersModal({ session, onClose }) {
     }
   }
 
-  // Add manual entry
   const handleAddManual = async () => {
     if (!manualName && !manualEmail && !manualId) {
       alert('Please enter at least a name, email, or ID')
@@ -518,7 +548,7 @@ function LearnersModal({ session, onClose }) {
       setManualEmail('')
       setManualId('')
       setShowManualEntry(false)
-      fetchLearners()
+      fetchData()
     } catch (error) {
       console.error('Error adding learner:', error)
       alert('Failed to add learner: ' + error.message)
@@ -537,7 +567,7 @@ function LearnersModal({ session, onClose }) {
         .eq('id', id)
 
       if (error) throw error
-      fetchLearners()
+      fetchData()
     } catch (error) {
       console.error('Error removing learner:', error)
       alert('Failed to remove learner')
@@ -552,9 +582,46 @@ function LearnersModal({ session, onClose }) {
         .eq('id', id)
 
       if (error) throw error
-      fetchLearners()
+      fetchData()
     } catch (error) {
       console.error('Error updating status:', error)
+    }
+  }
+
+  const handleSendMessage = async () => {
+    if (!newMessage.trim()) {
+      alert('Please enter a message')
+      return
+    }
+
+    if (isPrivate && !selectedRecipient) {
+      alert('Please select a recipient for private messages')
+      return
+    }
+
+    setSaving(true)
+    try {
+      const { error } = await supabase
+        .from('training_messages')
+        .insert({
+          session_id: session.id,
+          sender_id: profile.id,
+          recipient_id: isPrivate ? selectedRecipient : null,
+          message: newMessage.trim(),
+          is_private: isPrivate
+        })
+
+      if (error) throw error
+
+      setNewMessage('')
+      setIsPrivate(false)
+      setSelectedRecipient('')
+      fetchData()
+    } catch (error) {
+      console.error('Error sending message:', error)
+      alert('Failed to send message: ' + error.message)
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -564,11 +631,11 @@ function LearnersModal({ session, onClose }) {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between p-5 border-b border-slate-200">
           <div>
             <h2 className="font-display text-lg font-semibold text-slate-800">
-              Manage Learners
+              Manage Training
             </h2>
             <p className="text-sm text-slate-500">
               {getTopicLabel(session.topic)} — {format(new Date(session.session_date), 'MMM d, yyyy')}
@@ -579,152 +646,318 @@ function LearnersModal({ session, onClose }) {
           </button>
         </div>
 
-        <div className="p-5">
-          {/* Search for existing users */}
-          <div className="bg-slate-50 rounded-xl p-4 mb-6">
-            <h3 className="font-medium text-slate-800 mb-3">Add Learner</h3>
-            
-            {/* Search input */}
-            <div className="relative mb-3">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => handleSearch(e.target.value)}
-                placeholder="Search by name or email..."
-                className="input pl-10"
-              />
-            </div>
+        {/* Tabs */}
+        <div className="flex gap-2 p-4 border-b border-slate-100">
+          <button
+            onClick={() => setActiveTab('learners')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium ${
+              activeTab === 'learners' ? 'bg-brand-100 text-brand-700' : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            Learners ({learners.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('messages')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium ${
+              activeTab === 'messages' ? 'bg-brand-100 text-brand-700' : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            Messages ({messages.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('attendance')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium ${
+              activeTab === 'attendance' ? 'bg-brand-100 text-brand-700' : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            Attendance
+          </button>
+        </div>
 
-            {/* Search results */}
-            {searchQuery.length >= 2 && (
-              <div className="mb-3">
-                {searching ? (
-                  <p className="text-sm text-slate-500 p-2">Searching...</p>
-                ) : searchResults.length > 0 ? (
-                  <div className="border border-slate-200 rounded-lg divide-y divide-slate-100 bg-white max-h-48 overflow-y-auto">
-                    {searchResults.map((user) => (
-                      <div
-                        key={user.id}
-                        className="flex items-center justify-between p-3 hover:bg-slate-50"
-                      >
-                        <div>
-                          <p className="font-medium text-slate-800">{user.full_name}</p>
-                          <p className="text-sm text-slate-500">{user.email}</p>
+        <div className="flex-1 overflow-y-auto p-5">
+          {loading ? (
+            <div className="animate-pulse h-32 bg-slate-100 rounded-xl" />
+          ) : (
+            <>
+              {/* Learners Tab */}
+              {activeTab === 'learners' && (
+                <>
+                  {/* Add learner section */}
+                  <div className="bg-slate-50 rounded-xl p-4 mb-6">
+                    <h3 className="font-medium text-slate-800 mb-3">Add Learner</h3>
+                    
+                    <div className="relative mb-3">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => handleSearch(e.target.value)}
+                        placeholder="Search by name or email..."
+                        className="input pl-10"
+                      />
+                    </div>
+
+                    {searchQuery.length >= 2 && (
+                      <div className="mb-3">
+                        {searching ? (
+                          <p className="text-sm text-slate-500 p-2">Searching...</p>
+                        ) : searchResults.length > 0 ? (
+                          <div className="border border-slate-200 rounded-lg divide-y divide-slate-100 bg-white max-h-48 overflow-y-auto">
+                            {searchResults.map((user) => (
+                              <div
+                                key={user.id}
+                                className="flex items-center justify-between p-3 hover:bg-slate-50"
+                              >
+                                <div>
+                                  <p className="font-medium text-slate-800">{user.full_name}</p>
+                                  <p className="text-sm text-slate-500">{user.email}</p>
+                                </div>
+                                <button
+                                  onClick={() => handleAddFromSearch(user)}
+                                  disabled={saving}
+                                  className="btn-primary text-sm py-1.5 px-3"
+                                >
+                                  <Check className="w-4 h-4 mr-1" />
+                                  Add
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-slate-500 p-2">No users found</p>
+                        )}
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setShowManualEntry(!showManualEntry)}
+                      className="text-sm text-brand-600 hover:text-brand-700 font-medium"
+                    >
+                      {showManualEntry ? 'Hide manual entry' : 'Or add manually...'}
+                    </button>
+
+                    {showManualEntry && (
+                      <div className="mt-3 pt-3 border-t border-slate-200">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                          <input
+                            type="text"
+                            value={manualName}
+                            onChange={(e) => setManualName(e.target.value)}
+                            placeholder="Name"
+                            className="input py-2"
+                          />
+                          <input
+                            type="email"
+                            value={manualEmail}
+                            onChange={(e) => setManualEmail(e.target.value)}
+                            placeholder="Email"
+                            className="input py-2"
+                          />
+                          <input
+                            type="text"
+                            value={manualId}
+                            onChange={(e) => setManualId(e.target.value)}
+                            placeholder="Unique ID"
+                            className="input py-2"
+                          />
                         </div>
-                        <button
-                          onClick={() => handleAddFromSearch(user)}
-                          disabled={saving}
-                          className="btn-primary text-sm py-1.5 px-3"
-                        >
-                          <Check className="w-4 h-4 mr-1" />
-                          Add
+                        <button onClick={handleAddManual} disabled={saving} className="btn-primary">
+                          <UserPlus className="w-4 h-4 mr-2" />
+                          {saving ? 'Adding...' : 'Add Learner'}
                         </button>
                       </div>
-                    ))}
+                    )}
                   </div>
-                ) : (
-                  <p className="text-sm text-slate-500 p-2">No users found matching "{searchQuery}"</p>
-                )}
-              </div>
-            )}
 
-            {/* Toggle manual entry */}
-            <button
-              type="button"
-              onClick={() => setShowManualEntry(!showManualEntry)}
-              className="text-sm text-brand-600 hover:text-brand-700 font-medium"
-            >
-              {showManualEntry ? 'Hide manual entry' : 'Or add manually...'}
-            </button>
+                  {/* Learners list */}
+                  <h3 className="font-medium text-slate-800 mb-3">
+                    Enrolled Learners ({learners.length})
+                  </h3>
 
-            {/* Manual entry form */}
-            {showManualEntry && (
-              <div className="mt-3 pt-3 border-t border-slate-200">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
-                  <input
-                    type="text"
-                    value={manualName}
-                    onChange={(e) => setManualName(e.target.value)}
-                    placeholder="Name"
-                    className="input py-2"
-                  />
-                  <input
-                    type="email"
-                    value={manualEmail}
-                    onChange={(e) => setManualEmail(e.target.value)}
-                    placeholder="Email"
-                    className="input py-2"
-                  />
-                  <input
-                    type="text"
-                    value={manualId}
-                    onChange={(e) => setManualId(e.target.value)}
-                    placeholder="Unique ID"
-                    className="input py-2"
-                  />
-                </div>
-                <button
-                  onClick={handleAddManual}
-                  disabled={saving}
-                  className="btn-primary"
-                >
-                  <UserPlus className="w-4 h-4 mr-2" />
-                  {saving ? 'Adding...' : 'Add Learner'}
-                </button>
-              </div>
-            )}
-          </div>
+                  {learners.length > 0 ? (
+                    <div className="space-y-2">
+                      {learners.map((learner) => (
+                        <div
+                          key={learner.id}
+                          className="flex items-center justify-between p-3 border border-slate-200 rounded-xl"
+                        >
+                          <div>
+                            <p className="font-medium text-slate-800">
+                              {learner.learner_name || learner.learner_email || learner.learner_unique_id}
+                            </p>
+                            <p className="text-sm text-slate-500">
+                              {learner.learner_email && <span className="mr-3">{learner.learner_email}</span>}
+                              {learner.learner_unique_id && <span>ID: {learner.learner_unique_id}</span>}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={learner.status}
+                              onChange={(e) => handleStatusChange(learner.id, e.target.value)}
+                              className="text-sm border border-slate-200 rounded-lg px-2 py-1"
+                            >
+                              <option value="enrolled">Enrolled</option>
+                              <option value="attended">Attended</option>
+                              <option value="no_show">No Show</option>
+                              <option value="cancelled">Cancelled</option>
+                            </select>
+                            <button
+                              onClick={() => handleRemove(learner.id)}
+                              className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-slate-500">
+                      <Users className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                      <p>No learners enrolled yet</p>
+                    </div>
+                  )}
+                </>
+              )}
 
-          {/* Learners list */}
-          <h3 className="font-medium text-slate-800 mb-3">
-            Enrolled Learners ({learners.length})
-          </h3>
+              {/* Messages Tab */}
+              {activeTab === 'messages' && (
+                <>
+                  {/* Send message */}
+                  <div className="bg-slate-50 rounded-xl p-4 mb-6">
+                    <h3 className="font-medium text-slate-800 mb-3">Send Message</h3>
+                    
+                    <textarea
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      placeholder="Write a message to learners..."
+                      className="input resize-none h-24 mb-3"
+                    />
 
-          {loading ? (
-            <div className="animate-pulse h-20 bg-slate-100 rounded-xl" />
-          ) : learners.length > 0 ? (
-            <div className="space-y-2">
-              {learners.map((learner) => (
-                <div
-                  key={learner.id}
-                  className="flex items-center justify-between p-3 border border-slate-200 rounded-xl"
-                >
-                  <div>
-                    <p className="font-medium text-slate-800">
-                      {learner.learner_name || learner.learner_email || learner.learner_unique_id}
-                    </p>
-                    <p className="text-sm text-slate-500">
-                      {learner.learner_email && <span className="mr-3">{learner.learner_email}</span>}
-                      {learner.learner_unique_id && <span>ID: {learner.learner_unique_id}</span>}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={learner.status}
-                      onChange={(e) => handleStatusChange(learner.id, e.target.value)}
-                      className="text-sm border border-slate-200 rounded-lg px-2 py-1"
-                    >
-                      <option value="enrolled">Enrolled</option>
-                      <option value="attended">Attended</option>
-                      <option value="no_show">No Show</option>
-                      <option value="cancelled">Cancelled</option>
-                    </select>
+                    <div className="flex flex-wrap items-center gap-4 mb-3">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={isPrivate}
+                          onChange={(e) => setIsPrivate(e.target.checked)}
+                          className="w-4 h-4 rounded border-slate-300 text-brand-600"
+                        />
+                        <span className="text-sm text-slate-700">Private message</span>
+                      </label>
+
+                      {isPrivate && learners.length > 0 && (
+                        <select
+                          value={selectedRecipient}
+                          onChange={(e) => setSelectedRecipient(e.target.value)}
+                          className="input py-2 flex-1"
+                        >
+                          <option value="">Select recipient...</option>
+                          {learners.filter(l => l.learner_id).map((learner) => (
+                            <option key={learner.id} value={learner.learner_id}>
+                              {learner.learner_name || learner.learner_email}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+
                     <button
-                      onClick={() => handleRemove(learner.id)}
-                      className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                      onClick={handleSendMessage}
+                      disabled={saving}
+                      className="btn-primary"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <MessageSquare className="w-4 h-4 mr-2" />
+                      {saving ? 'Sending...' : 'Send Message'}
                     </button>
                   </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-slate-500">
-              <Users className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-              <p>No learners enrolled yet</p>
-            </div>
+
+                  {/* Messages list */}
+                  <h3 className="font-medium text-slate-800 mb-3">
+                    Sent Messages ({messages.length})
+                  </h3>
+
+                  {messages.length > 0 ? (
+                    <div className="space-y-3">
+                      {messages.map((message) => (
+                        <div
+                          key={message.id}
+                          className={`p-4 rounded-xl ${
+                            message.is_private ? 'bg-purple-50' : 'bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            {message.is_private ? (
+                              <Lock className="w-4 h-4 text-purple-600" />
+                            ) : (
+                              <Globe className="w-4 h-4 text-slate-400" />
+                            )}
+                            <span className="text-sm text-slate-500">
+                              {format(new Date(message.created_at), 'MMM d, h:mm a')}
+                            </span>
+                            {message.is_private && (
+                              <span className="badge bg-purple-100 text-purple-700 text-xs">
+                                To: {message.recipient?.full_name || 'Learner'}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-slate-700 whitespace-pre-wrap">
+                            {message.message}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-slate-500">
+                      <MessageSquare className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                      <p>No messages sent yet</p>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Attendance Tab */}
+              {activeTab === 'attendance' && (
+                <>
+                  <h3 className="font-medium text-slate-800 mb-3">
+                    Learner Attendance
+                  </h3>
+
+                  {attendance.length > 0 ? (
+                    <div className="space-y-2">
+                      {attendance.map((record) => (
+                        <div
+                          key={record.id}
+                          className="flex items-center justify-between p-3 border border-slate-200 rounded-xl"
+                        >
+                          <div>
+                            <p className="font-medium text-slate-800">
+                              {record.profiles?.full_name || 'Learner'}
+                            </p>
+                            <p className="text-sm text-slate-500">
+                              {format(new Date(record.attendance_date), 'MMM d, yyyy')}
+                            </p>
+                          </div>
+                          <span className={`badge ${
+                            record.status === 'present' ? 'badge-green' :
+                            record.status === 'absent' ? 'bg-red-100 text-red-700' :
+                            'badge-amber'
+                          }`}>
+                            {record.status}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-slate-500">
+                      <Calendar className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                      <p>No attendance records yet</p>
+                      <p className="text-sm">Learners will mark their attendance</p>
+                    </div>
+                  )}
+                </>
+              )}
+            </>
           )}
         </div>
 
@@ -737,5 +970,4 @@ function LearnersModal({ session, onClose }) {
     </div>
   )
 }
-
 export default TrainingTracker
