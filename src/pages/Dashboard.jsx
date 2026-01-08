@@ -24,31 +24,62 @@ function Dashboard() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetchDashboardData()
+    if (profile) {
+      fetchDashboardData()
+    }
   }, [profile])
 
   const fetchDashboardData = async () => {
     if (!profile) return
 
     try {
-      // Fetch upcoming training sessions
-      const { data: sessions } = await supabase
-        .from('training_sessions')
-        .select(`
-          *,
-          trainings (title, category)
-        `)
-        .gte('session_date', new Date().toISOString().split('T')[0])
-        .order('session_date', { ascending: true })
-        .limit(5)
+      const today = new Date().toISOString().split('T')[0]
 
-      setUpcomingSessions(sessions || [])
+      if (isTrainer) {
+        // Trainers see sessions they created
+        const { data: sessions } = await supabase
+          .from('training_sessions')
+          .select('*')
+          .eq('trainer_id', profile.id)
+          .gte('session_date', today)
+          .order('session_date', { ascending: true })
+          .limit(5)
+
+        setUpcomingSessions(sessions || [])
+      } else {
+        // Learners see sessions they are enrolled in
+        const { data: enrollments } = await supabase
+          .from('session_enrollments')
+          .select(`
+            session_id,
+            training_sessions (
+              id,
+              topic,
+              audience,
+              session_date,
+              start_time,
+              end_time,
+              location,
+              status
+            )
+          `)
+          .eq('learner_email', profile.email)
+          .or(`learner_unique_id.eq.${profile.id}`)
+
+        // Filter for upcoming sessions and flatten the data
+        const sessions = enrollments
+          ?.map(e => e.training_sessions)
+          ?.filter(s => s && s.session_date >= today)
+          ?.sort((a, b) => new Date(a.session_date) - new Date(b.session_date))
+          ?.slice(0, 5) || []
+
+        setUpcomingSessions(sessions)
+      }
 
       // Fetch announcements
       const { data: announceData } = await supabase
         .from('announcements')
         .select('*')
-        .or(`audience.eq.all,audience.eq.${isTrainer ? 'trainers' : 'learners'}`)
         .order('created_at', { ascending: false })
         .limit(3)
 
@@ -94,15 +125,22 @@ function Dashboard() {
     }
   }
 
-  const getCategoryColor = (category) => {
-    const colors = {
-      claims: 'badge-blue',
-      enrollment: 'badge-green',
-      provider_data: 'badge-amber',
-      hrp_system: 'badge-purple',
-      general: 'badge-slate',
+  const getTopicLabel = (topic) => {
+    const topics = {
+      hrp_navigation: 'HRP Navigation',
+      hr_answers_standard: 'HR Answers Standard',
+      hr_answers_adhoc: 'HR Answers Adhoc',
+      dlp_role_specific: 'DLP-Role Specific',
+      learninglab: 'LearningLab',
+      refresher: 'Refresher',
     }
-    return colors[category] || 'badge-slate'
+    return topics[topic] || topic || 'Training Session'
+  }
+
+  const getAudienceBadge = (audience) => {
+    if (audience === 'internal') return 'badge-blue'
+    if (audience === 'external') return 'badge-green'
+    return 'badge-slate'
   }
 
   return (
@@ -114,7 +152,7 @@ function Dashboard() {
         </h1>
         <p className="text-slate-500">
           {isTrainer
-            ? 'Here\'s what\'s happening with your training team today.'
+            ? "Here's what's happening with your training sessions."
             : 'Track your progress and continue your learning journey.'}
         </p>
       </div>
@@ -125,7 +163,7 @@ function Dashboard() {
           <>
             <StatCard
               icon={Calendar}
-              label="Sessions This Month"
+              label="Sessions Scheduled"
               value={stats.sessionsDelivered || 0}
               color="brand"
             />
@@ -184,7 +222,7 @@ function Dashboard() {
         <div className="lg:col-span-2 card p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="font-display text-lg font-semibold text-slate-800">
-              Upcoming Training Sessions
+              {isTrainer ? 'Your Upcoming Sessions' : 'My Upcoming Training'}
             </h2>
             <Link to="/calendar" className="btn-ghost text-sm">
               View all <ArrowRight className="w-4 h-4 ml-1" />
@@ -214,11 +252,11 @@ function Dashboard() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="font-medium text-slate-800 truncate">
-                      {session.trainings?.title || 'Untitled Session'}
+                      {getTopicLabel(session.topic)}
                     </h3>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className={`badge ${getCategoryColor(session.trainings?.category)}`}>
-                        {session.trainings?.category?.replace('_', ' ') || 'General'}
+                      <span className={`badge ${getAudienceBadge(session.audience)}`}>
+                        {session.audience || 'General'}
                       </span>
                       <span className="text-sm text-slate-500">
                         {session.start_time?.slice(0, 5)}
@@ -232,7 +270,9 @@ function Dashboard() {
           ) : (
             <div className="text-center py-8">
               <Calendar className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-              <p className="text-slate-500">No upcoming sessions scheduled</p>
+              <p className="text-slate-500">
+                {isTrainer ? 'No upcoming sessions scheduled' : 'No training sessions assigned to you yet'}
+              </p>
             </div>
           )}
         </div>
@@ -293,7 +333,7 @@ function Dashboard() {
               <QuickActionCard to="/trainer/checkin" icon={CheckCircle2} label="Check In" />
               <QuickActionCard to="/trainer/qa-board" icon={MessageSquare} label="Team Q&A" />
               <QuickActionCard to="/trainer/learner-questions" icon={Users} label="Answer Questions" />
-              <QuickActionCard to="/resources" icon={BookOpen} label="Resources" />
+              <QuickActionCard to="/trainer/tracking" icon={Calendar} label="Training Tracker" />
             </>
           ) : (
             <>
