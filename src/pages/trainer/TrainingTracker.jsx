@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { 
   BarChart3, Calendar, Users, Clock, Plus, X, 
-  Trash2, UserPlus 
+  Trash2, UserPlus, Search, Check
 } from 'lucide-react'
 import { format } from 'date-fns'
 
@@ -399,10 +399,18 @@ function ScheduleModal({ profile, onClose, onSuccess }) {
 function LearnersModal({ session, onClose }) {
   const [learners, setLearners] = useState([])
   const [loading, setLoading] = useState(true)
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
-  const [uniqueId, setUniqueId] = useState('')
   const [saving, setSaving] = useState(false)
+  
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState([])
+  const [searching, setSearching] = useState(false)
+  
+  // Manual entry state
+  const [showManualEntry, setShowManualEntry] = useState(false)
+  const [manualName, setManualName] = useState('')
+  const [manualEmail, setManualEmail] = useState('')
+  const [manualId, setManualId] = useState('')
 
   useEffect(() => {
     fetchLearners()
@@ -424,30 +432,92 @@ function LearnersModal({ session, onClose }) {
     }
   }
 
-  const handleAdd = async () => {
-    if (!name && !email && !uniqueId) {
-      alert('Please enter at least a name, email, or ID')
+  // Search for users in the system
+  const handleSearch = async (query) => {
+    setSearchQuery(query)
+    
+    if (query.length < 2) {
+      setSearchResults([])
       return
     }
 
-    setSaving(true)
+    setSearching(true)
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, role')
+        .or(`full_name.ilike.%${query}%,email.ilike.%${query}%`)
+        .limit(10)
 
+      if (error) throw error
+      
+      // Filter out users already enrolled
+      const enrolledIds = learners.map(l => l.learner_id)
+      const enrolledEmails = learners.map(l => l.learner_email)
+      const filtered = data.filter(u => 
+        !enrolledIds.includes(u.id) && !enrolledEmails.includes(u.email)
+      )
+      
+      setSearchResults(filtered || [])
+    } catch (error) {
+      console.error('Error searching users:', error)
+    } finally {
+      setSearching(false)
+    }
+  }
+
+  // Add user from search results
+  const handleAddFromSearch = async (user) => {
+    setSaving(true)
     try {
       const { error } = await supabase
         .from('session_enrollments')
         .insert({
           session_id: session.id,
-          learner_name: name || null,
-          learner_email: email || null,
-          learner_unique_id: uniqueId || null,
+          learner_id: user.id,
+          learner_name: user.full_name,
+          learner_email: user.email,
           status: 'enrolled'
         })
 
       if (error) throw error
 
-      setName('')
-      setEmail('')
-      setUniqueId('')
+      setSearchQuery('')
+      setSearchResults([])
+      fetchLearners()
+    } catch (error) {
+      console.error('Error adding learner:', error)
+      alert('Failed to add learner: ' + error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Add manual entry
+  const handleAddManual = async () => {
+    if (!manualName && !manualEmail && !manualId) {
+      alert('Please enter at least a name, email, or ID')
+      return
+    }
+
+    setSaving(true)
+    try {
+      const { error } = await supabase
+        .from('session_enrollments')
+        .insert({
+          session_id: session.id,
+          learner_name: manualName || null,
+          learner_email: manualEmail || null,
+          learner_unique_id: manualId || null,
+          status: 'enrolled'
+        })
+
+      if (error) throw error
+
+      setManualName('')
+      setManualEmail('')
+      setManualId('')
+      setShowManualEntry(false)
       fetchLearners()
     } catch (error) {
       console.error('Error adding learner:', error)
@@ -510,40 +580,100 @@ function LearnersModal({ session, onClose }) {
         </div>
 
         <div className="p-5">
-          {/* Add learner form */}
+          {/* Search for existing users */}
           <div className="bg-slate-50 rounded-xl p-4 mb-6">
             <h3 className="font-medium text-slate-800 mb-3">Add Learner</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+            
+            {/* Search input */}
+            <div className="relative mb-3">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
               <input
                 type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Name"
-                className="input py-2"
-              />
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Email"
-                className="input py-2"
-              />
-              <input
-                type="text"
-                value={uniqueId}
-                onChange={(e) => setUniqueId(e.target.value)}
-                placeholder="Unique ID"
-                className="input py-2"
+                value={searchQuery}
+                onChange={(e) => handleSearch(e.target.value)}
+                placeholder="Search by name or email..."
+                className="input pl-10"
               />
             </div>
+
+            {/* Search results */}
+            {searchQuery.length >= 2 && (
+              <div className="mb-3">
+                {searching ? (
+                  <p className="text-sm text-slate-500 p-2">Searching...</p>
+                ) : searchResults.length > 0 ? (
+                  <div className="border border-slate-200 rounded-lg divide-y divide-slate-100 bg-white max-h-48 overflow-y-auto">
+                    {searchResults.map((user) => (
+                      <div
+                        key={user.id}
+                        className="flex items-center justify-between p-3 hover:bg-slate-50"
+                      >
+                        <div>
+                          <p className="font-medium text-slate-800">{user.full_name}</p>
+                          <p className="text-sm text-slate-500">{user.email}</p>
+                        </div>
+                        <button
+                          onClick={() => handleAddFromSearch(user)}
+                          disabled={saving}
+                          className="btn-primary text-sm py-1.5 px-3"
+                        >
+                          <Check className="w-4 h-4 mr-1" />
+                          Add
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500 p-2">No users found matching "{searchQuery}"</p>
+                )}
+              </div>
+            )}
+
+            {/* Toggle manual entry */}
             <button
-              onClick={handleAdd}
-              disabled={saving}
-              className="btn-primary"
+              type="button"
+              onClick={() => setShowManualEntry(!showManualEntry)}
+              className="text-sm text-brand-600 hover:text-brand-700 font-medium"
             >
-              <UserPlus className="w-4 h-4 mr-2" />
-              {saving ? 'Adding...' : 'Add Learner'}
+              {showManualEntry ? 'Hide manual entry' : 'Or add manually...'}
             </button>
+
+            {/* Manual entry form */}
+            {showManualEntry && (
+              <div className="mt-3 pt-3 border-t border-slate-200">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                  <input
+                    type="text"
+                    value={manualName}
+                    onChange={(e) => setManualName(e.target.value)}
+                    placeholder="Name"
+                    className="input py-2"
+                  />
+                  <input
+                    type="email"
+                    value={manualEmail}
+                    onChange={(e) => setManualEmail(e.target.value)}
+                    placeholder="Email"
+                    className="input py-2"
+                  />
+                  <input
+                    type="text"
+                    value={manualId}
+                    onChange={(e) => setManualId(e.target.value)}
+                    placeholder="Unique ID"
+                    className="input py-2"
+                  />
+                </div>
+                <button
+                  onClick={handleAddManual}
+                  disabled={saving}
+                  className="btn-primary"
+                >
+                  <UserPlus className="w-4 h-4 mr-2" />
+                  {saving ? 'Adding...' : 'Add Learner'}
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Learners list */}
