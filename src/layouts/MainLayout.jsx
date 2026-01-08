@@ -12,8 +12,7 @@ import {
   Bell,
   Menu,
   X,
-  LogOut,
-  ChevronDown
+  LogOut
 } from 'lucide-react'
 
 function MainLayout({ children }) {
