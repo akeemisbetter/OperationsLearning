@@ -12,23 +12,14 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     let isMounted = true
-    
-    // Set a timeout to prevent infinite loading
-    const timeout = setTimeout(() => {
-      if (isMounted && loading) {
-        console.warn('Auth loading timeout - forcing completion')
-        setLoading(false)
-      }
-    }, 5000) // 5 second timeout
 
     const initializeAuth = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession()
+        // Get current session
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         
-        if (error) {
-          console.error('Session error:', error)
-          // Clear any stale session data
-          await supabase.auth.signOut()
+        if (sessionError) {
+          console.error('Session error:', sessionError)
           if (isMounted) {
             setUser(null)
             setProfile(null)
@@ -40,7 +31,14 @@ export function AuthProvider({ children }) {
         if (session?.user) {
           if (isMounted) {
             setUser(session.user)
-            await fetchProfile(session.user.id)
+          }
+          
+          // Fetch profile with timeout
+          const profileData = await fetchProfileWithTimeout(session.user.id)
+          
+          if (isMounted) {
+            setProfile(profileData)
+            setLoading(false)
           }
         } else {
           if (isMounted) {
@@ -66,7 +64,7 @@ export function AuthProvider({ children }) {
       async (event, session) => {
         console.log('Auth state changed:', event)
         
-        if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
+        if (event === 'SIGNED_OUT') {
           if (isMounted) {
             setUser(null)
             setProfile(null)
@@ -75,14 +73,16 @@ export function AuthProvider({ children }) {
           return
         }
 
-        if (event === 'TOKEN_REFRESHED') {
-          console.log('Token refreshed successfully')
-        }
-
         if (session?.user) {
           if (isMounted) {
             setUser(session.user)
-            await fetchProfile(session.user.id)
+          }
+          
+          const profileData = await fetchProfileWithTimeout(session.user.id)
+          
+          if (isMounted) {
+            setProfile(profileData)
+            setLoading(false)
           }
         } else {
           if (isMounted) {
@@ -96,48 +96,49 @@ export function AuthProvider({ children }) {
 
     return () => {
       isMounted = false
-      clearTimeout(timeout)
       subscription.unsubscribe()
     }
   }, [])
 
-  const fetchProfile = async (userId) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single()
+  // Fetch profile with a timeout to prevent hanging
+  const fetchProfileWithTimeout = async (userId) => {
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Profile fetch timeout')), 3000)
+    })
 
-      if (error) {
-        console.error('Error fetching profile:', error)
-        setProfile(null)
-      } else {
-        setProfile(data)
+    const fetchPromise = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .single()
+
+        if (error) {
+          console.error('Profile fetch error:', error)
+          return null
+        }
+        return data
+      } catch (err) {
+        console.error('Profile fetch exception:', err)
+        return null
       }
+    }
+
+    try {
+      return await Promise.race([fetchPromise(), timeoutPromise])
     } catch (error) {
-      console.error('Error fetching profile:', error)
-      setProfile(null)
-    } finally {
-      setLoading(false)
+      console.error('Profile fetch failed:', error.message)
+      return null
     }
   }
 
   const signIn = async (email, password) => {
-    setLoading(true)
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-      if (error) {
-        setLoading(false)
-      }
-      return { data, error }
-    } catch (error) {
-      setLoading(false)
-      return { data: null, error }
-    }
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+    return { data, error }
   }
 
   const signUp = async (email, password, metadata = {}) => {
@@ -152,17 +153,12 @@ export function AuthProvider({ children }) {
   }
 
   const signOut = async () => {
-    setLoading(true)
-    try {
-      const { error } = await supabase.auth.signOut()
-      if (!error) {
-        setUser(null)
-        setProfile(null)
-      }
-      return { error }
-    } finally {
-      setLoading(false)
+    const { error } = await supabase.auth.signOut()
+    if (!error) {
+      setUser(null)
+      setProfile(null)
     }
+    return { error }
   }
 
   const value = {
