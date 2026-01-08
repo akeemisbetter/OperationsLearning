@@ -5,9 +5,9 @@ import {
   BarChart3, Calendar, Users, Clock, Plus, X, 
   Trash2, UserPlus, Search, Check, MessageSquare,
   Lock, Globe, ArrowLeft, CheckCircle2, XCircle,
-  Edit, AlertTriangle, RefreshCw
+  Edit, AlertTriangle, TrendingUp, Save
 } from 'lucide-react'
-import { format, parseISO, eachDayOfInterval, isBefore, isToday } from 'date-fns'
+import { format, parseISO, eachDayOfInterval, isBefore, isToday, startOfWeek, endOfWeek } from 'date-fns'
 
 const TOPICS = [
   { id: 'hrp_navigation', label: 'HRP Navigation' },
@@ -31,13 +31,8 @@ const formatTime = (timeStr) => {
   return format(date, 'h:mm a')
 }
 
-const getTopicLabel = (topicId) => {
-  return TOPICS.find(t => t.id === topicId)?.label || topicId || 'Training'
-}
-
-const getAudienceLabel = (audienceId) => {
-  return AUDIENCES.find(a => a.id === audienceId)?.label || audienceId || 'All'
-}
+const getTopicLabel = (topicId) => TOPICS.find(t => t.id === topicId)?.label || topicId || 'Training'
+const getAudienceLabel = (audienceId) => AUDIENCES.find(a => a.id === audienceId)?.label || audienceId || 'All'
 
 function TrainingTracker() {
   const { profile } = useAuth()
@@ -48,9 +43,7 @@ function TrainingTracker() {
   const [activeFilter, setActiveFilter] = useState('upcoming')
 
   useEffect(() => {
-    if (profile) {
-      fetchSessions()
-    }
+    if (profile) fetchSessions()
   }, [profile])
 
   const fetchSessions = async () => {
@@ -60,7 +53,6 @@ function TrainingTracker() {
         .select('*, session_enrollments (id)')
         .eq('trainer_id', profile.id)
         .order('session_date', { ascending: false })
-
       if (error) throw error
       setSessions(data || [])
     } catch (error) {
@@ -77,12 +69,10 @@ function TrainingTracker() {
     const endDate = s.end_date || s.session_date
     return !isBefore(parseISO(endDate), today) && s.status !== 'cancelled'
   })
-
   const pastSessions = sessions.filter(s => {
     const endDate = s.end_date || s.session_date
     return isBefore(parseISO(endDate), today) && s.status !== 'cancelled'
   })
-
   const cancelledSessions = sessions.filter(s => s.status === 'cancelled')
 
   const getFilteredSessions = () => {
@@ -99,10 +89,7 @@ function TrainingTracker() {
       <TrainingDetailView
         session={selectedSession}
         profile={profile}
-        onBack={() => {
-          setSelectedSession(null)
-          fetchSessions()
-        }}
+        onBack={() => { setSelectedSession(null); fetchSessions() }}
         onUpdate={fetchSessions}
       />
     )
@@ -112,14 +99,11 @@ function TrainingTracker() {
     <div className="max-w-5xl mx-auto animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <div>
-          <h1 className="font-display text-2xl lg:text-3xl font-bold text-slate-800 mb-2">
-            My Classes
-          </h1>
+          <h1 className="font-display text-2xl lg:text-3xl font-bold text-slate-800 mb-2">My Classes</h1>
           <p className="text-slate-500">Schedule and manage your training classes</p>
         </div>
         <button onClick={() => setShowScheduleModal(true)} className="btn-primary">
-          <Plus className="w-5 h-5 mr-2" />
-          Schedule Class
+          <Plus className="w-5 h-5 mr-2" />Schedule Class
         </button>
       </div>
 
@@ -162,46 +146,27 @@ function TrainingTracker() {
       </div>
 
       <div className="flex gap-2 mb-6">
-        <button
-          onClick={() => setActiveFilter('upcoming')}
-          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-            activeFilter === 'upcoming' ? 'bg-brand-100 text-brand-700' : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          Upcoming ({upcomingSessions.length})
-        </button>
-        <button
-          onClick={() => setActiveFilter('past')}
-          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-            activeFilter === 'past' ? 'bg-brand-100 text-brand-700' : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          Past ({pastSessions.length})
-        </button>
-        <button
-          onClick={() => setActiveFilter('cancelled')}
-          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-            activeFilter === 'cancelled' ? 'bg-brand-100 text-brand-700' : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          Cancelled ({cancelledSessions.length})
-        </button>
+        {['upcoming', 'past', 'cancelled'].map((filter) => (
+          <button
+            key={filter}
+            onClick={() => setActiveFilter(filter)}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors capitalize ${
+              activeFilter === filter ? 'bg-brand-100 text-brand-700' : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            {filter} ({filter === 'upcoming' ? upcomingSessions.length : filter === 'past' ? pastSessions.length : cancelledSessions.length})
+          </button>
+        ))}
       </div>
 
       <div className="card">
         <div className="p-5 border-b border-slate-200">
-          <h2 className="font-display font-semibold text-slate-800">
-            {activeFilter === 'upcoming' && 'Upcoming Classes'}
-            {activeFilter === 'past' && 'Past Classes'}
-            {activeFilter === 'cancelled' && 'Cancelled Classes'}
-          </h2>
+          <h2 className="font-display font-semibold text-slate-800 capitalize">{activeFilter} Classes</h2>
         </div>
 
         {loading ? (
           <div className="p-5 space-y-4">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-20 bg-slate-100 rounded-xl animate-pulse" />
-            ))}
+            {[1, 2, 3].map((i) => <div key={i} className="h-20 bg-slate-100 rounded-xl animate-pulse" />)}
           </div>
         ) : getFilteredSessions().length > 0 ? (
           <div className="divide-y divide-slate-100">
@@ -211,35 +176,26 @@ function TrainingTracker() {
               const isMultiDay = endDate && session.end_date !== session.session_date
 
               return (
-                <div 
-                  key={session.id} 
-                  onClick={() => setSelectedSession(session)}
-                  className={`p-5 hover:bg-slate-50 transition-colors cursor-pointer ${
-                    session.status === 'cancelled' ? 'opacity-60' : ''
-                  }`}
-                >
+                <div key={session.id} onClick={() => setSelectedSession(session)}
+                  className={`p-5 hover:bg-slate-50 transition-colors cursor-pointer ${session.status === 'cancelled' ? 'opacity-60' : ''}`}>
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
                         <h3 className="font-medium text-slate-800">{getTopicLabel(session.topic)}</h3>
-                        {session.status === 'cancelled' && (
-                          <span className="badge bg-red-100 text-red-700">Cancelled</span>
-                        )}
+                        {session.status === 'cancelled' && <span className="badge bg-red-100 text-red-700">Cancelled</span>}
+                        {session.progress_tracking_enabled && <span className="badge badge-purple">Progress Tracking</span>}
                       </div>
                       <div className="flex flex-wrap items-center gap-2 text-sm">
                         <span className="badge badge-blue">{getAudienceLabel(session.audience)}</span>
                         <span className="text-slate-500 flex items-center gap-1">
                           <Calendar className="w-4 h-4" />
-                          {format(startDate, 'MMM d, yyyy')}
-                          {isMultiDay && <span> - {format(endDate, 'MMM d, yyyy')}</span>}
+                          {format(startDate, 'MMM d, yyyy')}{isMultiDay && ` - ${format(endDate, 'MMM d, yyyy')}`}
                         </span>
                         <span className="text-slate-500 flex items-center gap-1">
-                          <Clock className="w-4 h-4" />
-                          {formatTime(session.start_time)} - {formatTime(session.end_time)}
+                          <Clock className="w-4 h-4" />{formatTime(session.start_time)} - {formatTime(session.end_time)}
                         </span>
                         <span className="text-slate-500 flex items-center gap-1">
-                          <Users className="w-4 h-4" />
-                          {session.session_enrollments?.length || 0} enrolled
+                          <Users className="w-4 h-4" />{session.session_enrollments?.length || 0} enrolled
                         </span>
                       </div>
                     </div>
@@ -254,23 +210,14 @@ function TrainingTracker() {
             <BarChart3 className="w-12 h-12 text-slate-300 mx-auto mb-4" />
             <h3 className="font-display font-semibold text-slate-800 mb-2">No classes found</h3>
             {activeFilter === 'upcoming' && (
-              <button onClick={() => setShowScheduleModal(true)} className="btn-primary mt-4">
-                Schedule Class
-              </button>
+              <button onClick={() => setShowScheduleModal(true)} className="btn-primary mt-4">Schedule Class</button>
             )}
           </div>
         )}
       </div>
 
       {showScheduleModal && (
-        <ScheduleModal
-          profile={profile}
-          onClose={() => setShowScheduleModal(false)}
-          onSuccess={() => {
-            setShowScheduleModal(false)
-            fetchSessions()
-          }}
-        />
+        <ScheduleModal profile={profile} onClose={() => setShowScheduleModal(false)} onSuccess={() => { setShowScheduleModal(false); fetchSessions() }} />
       )}
     </div>
   )
@@ -284,33 +231,28 @@ function ScheduleModal({ profile, onClose, onSuccess }) {
   const [startTime, setStartTime] = useState('09:00')
   const [endTime, setEndTime] = useState('17:00')
   const [location, setLocation] = useState('')
+  const [progressTracking, setProgressTracking] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!topic || !audience || !startDate) {
-      alert('Please fill in Topic, Audience, and Start Date')
-      return
-    }
+    if (!topic || !audience || !startDate) { alert('Please fill in Topic, Audience, and Start Date'); return }
     setSaving(true)
     try {
-      const { error } = await supabase
-        .from('training_sessions')
-        .insert({
-          trainer_id: profile.id,
-          topic,
-          audience,
-          session_date: startDate,
-          end_date: endDate || startDate,
-          start_time: startTime,
-          end_time: endTime,
-          location: location || null,
-          status: 'scheduled'
-        })
+      const { error } = await supabase.from('training_sessions').insert({
+        trainer_id: profile.id,
+        topic, audience,
+        session_date: startDate,
+        end_date: endDate || startDate,
+        start_time: startTime,
+        end_time: endTime,
+        location: location || null,
+        status: 'scheduled',
+        progress_tracking_enabled: progressTracking
+      })
       if (error) throw error
       onSuccess()
     } catch (error) {
-      console.error('Error creating session:', error)
       alert('Failed to create class: ' + error.message)
     } finally {
       setSaving(false)
@@ -322,9 +264,7 @@ function ScheduleModal({ profile, onClose, onSuccess }) {
       <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-5 border-b border-slate-200">
           <h2 className="font-display text-lg font-semibold text-slate-800">Schedule Class</h2>
-          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg">
-            <X className="w-5 h-5 text-slate-500" />
-          </button>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg"><X className="w-5 h-5 text-slate-500" /></button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div>
@@ -365,6 +305,25 @@ function ScheduleModal({ profile, onClose, onSuccess }) {
             <label className="block text-sm font-medium text-slate-700 mb-2">Location</label>
             <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Room name, virtual link, etc." className="input" />
           </div>
+          
+          {/* Progress Tracking Toggle */}
+          <div className="bg-purple-50 rounded-xl p-4">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={progressTracking}
+                onChange={(e) => setProgressTracking(e.target.checked)}
+                className="w-5 h-5 mt-0.5 rounded border-slate-300 text-purple-600"
+              />
+              <div>
+                <span className="font-medium text-slate-800">Enable Progress Tracking</span>
+                <p className="text-sm text-slate-500 mt-1">
+                  Track daily participation, accuracy, and productivity scores for each learner. Add notes and view weekly trends.
+                </p>
+              </div>
+            </label>
+          </div>
+
           <div className="flex gap-3 pt-4">
             <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
             <button type="submit" disabled={saving} className="btn-primary flex-1">{saving ? 'Creating...' : 'Create Class'}</button>
@@ -380,10 +339,11 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
   const [learners, setLearners] = useState([])
   const [messages, setMessages] = useState([])
   const [attendance, setAttendance] = useState([])
+  const [progress, setProgress] = useState([])
   const [loading, setLoading] = useState(true)
   const [sessionData, setSessionData] = useState(session)
   const [showEditModal, setShowEditModal] = useState(false)
-  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [selectedLearnerForProgress, setSelectedLearnerForProgress] = useState(null)
 
   const [newMessage, setNewMessage] = useState('')
   const [isPrivate, setIsPrivate] = useState(false)
@@ -404,9 +364,7 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
   const trainingDays = isMultiDay ? eachDayOfInterval({ start: startDate, end: endDate }) : [startDate]
   const isCancelled = sessionData.status === 'cancelled'
 
-  useEffect(() => {
-    fetchData()
-  }, [sessionData.id])
+  useEffect(() => { fetchData() }, [sessionData.id])
 
   const fetchData = async () => {
     try {
@@ -425,6 +383,15 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
         .select('*, profiles:learner_id (full_name, email)')
         .eq('session_id', sessionData.id)
       setAttendance(attendanceData || [])
+
+      if (sessionData.progress_tracking_enabled) {
+        const { data: progressData } = await supabase
+          .from('learner_progress')
+          .select('*, profiles:learner_id (full_name, email)')
+          .eq('session_id', sessionData.id)
+          .order('progress_date', { ascending: true })
+        setProgress(progressData || [])
+      }
     } catch (error) {
       console.error('Error fetching data:', error)
     } finally {
@@ -457,14 +424,10 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
     setSaving(true)
     try {
       await supabase.from('session_enrollments').insert({ session_id: sessionData.id, learner_id: user.id, learner_name: user.full_name, learner_email: user.email, status: 'enrolled' })
-      setSearchQuery('')
-      setSearchResults([])
+      setSearchQuery(''); setSearchResults([])
       fetchData()
-    } catch (error) {
-      alert('Failed to add learner')
-    } finally {
-      setSaving(false)
-    }
+    } catch (error) { alert('Failed to add learner') }
+    finally { setSaving(false) }
   }
 
   const handleAddManual = async () => {
@@ -474,11 +437,8 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
       await supabase.from('session_enrollments').insert({ session_id: sessionData.id, learner_name: manualName || null, learner_email: manualEmail || null, learner_unique_id: manualId || null, status: 'enrolled' })
       setManualName(''); setManualEmail(''); setManualId(''); setShowManualEntry(false)
       fetchData()
-    } catch (error) {
-      alert('Failed to add learner')
-    } finally {
-      setSaving(false)
-    }
+    } catch (error) { alert('Failed to add learner') }
+    finally { setSaving(false) }
   }
 
   const handleRemoveLearner = async (id) => {
@@ -500,18 +460,39 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
       await supabase.from('training_messages').insert({ session_id: sessionData.id, sender_id: profile.id, recipient_id: isPrivate ? selectedRecipient : null, message: newMessage.trim(), is_private: isPrivate })
       setNewMessage(''); setIsPrivate(false); setSelectedRecipient('')
       fetchData()
-    } catch (error) {
-      alert('Failed to send message')
-    } finally {
-      setSaving(false)
-    }
+    } catch (error) { alert('Failed to send message') }
+    finally { setSaving(false) }
   }
 
   const handleCancelClass = async () => {
-    if (!confirm('Are you sure you want to cancel this class?')) return
+    if (!confirm('Are you sure you want to cancel this class? This will notify all enrolled learners.')) return
     await supabase.from('training_sessions').update({ status: 'cancelled' }).eq('id', sessionData.id)
     refreshSession()
     onUpdate()
+  }
+
+  const getProgressForLearner = (learnerId) => progress.filter(p => p.learner_id === learnerId)
+
+  const getWeeklyAveragesForLearner = (learnerId) => {
+    const learnerProgress = getProgressForLearner(learnerId)
+    if (learnerProgress.length === 0) return []
+    
+    const weeks = {}
+    learnerProgress.forEach(p => {
+      const date = parseISO(p.progress_date)
+      const weekStart = format(startOfWeek(date), 'yyyy-MM-dd')
+      if (!weeks[weekStart]) weeks[weekStart] = { participation: [], accuracy: [], productivity: [] }
+      if (p.participation_score !== null) weeks[weekStart].participation.push(p.participation_score)
+      if (p.accuracy_score !== null) weeks[weekStart].accuracy.push(p.accuracy_score)
+      if (p.productivity_score !== null) weeks[weekStart].productivity.push(p.productivity_score)
+    })
+
+    return Object.entries(weeks).map(([weekStart, data]) => ({
+      week: weekStart,
+      participation: data.participation.length > 0 ? Math.round(data.participation.reduce((a, b) => a + b, 0) / data.participation.length) : null,
+      accuracy: data.accuracy.length > 0 ? Math.round(data.accuracy.reduce((a, b) => a + b, 0) / data.accuracy.length) : null,
+      productivity: data.productivity.length > 0 ? Math.round(data.productivity.reduce((a, b) => a + b, 0) / data.productivity.length) : null,
+    }))
   }
 
   return (
@@ -530,7 +511,10 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
       <div className="card p-6 mb-6">
         <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-4">
           <div>
-            <h1 className="font-display text-2xl font-bold text-slate-800 mb-2">{getTopicLabel(sessionData.topic)}</h1>
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <h1 className="font-display text-2xl font-bold text-slate-800">{getTopicLabel(sessionData.topic)}</h1>
+              {sessionData.progress_tracking_enabled && <span className="badge badge-purple">Progress Tracking</span>}
+            </div>
             <div className="flex items-center gap-2">
               <span className="badge badge-blue">{getAudienceLabel(sessionData.audience)}</span>
               <span className={`badge ${sessionData.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'badge-amber'}`}>{sessionData.status || 'scheduled'}</span>
@@ -551,16 +535,24 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
         </div>
       </div>
 
-      <div className="flex gap-2 mb-6">
-        <button onClick={() => setActiveTab('learners')} className={`px-4 py-2 rounded-lg font-medium ${activeTab === 'learners' ? 'bg-brand-100 text-brand-700' : 'text-slate-600 hover:bg-slate-100'}`}>Learners ({learners.length})</button>
-        <button onClick={() => setActiveTab('attendance')} className={`px-4 py-2 rounded-lg font-medium ${activeTab === 'attendance' ? 'bg-brand-100 text-brand-700' : 'text-slate-600 hover:bg-slate-100'}`}>Attendance</button>
-        <button onClick={() => setActiveTab('messages')} className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 ${activeTab === 'messages' ? 'bg-brand-100 text-brand-700' : 'text-slate-600 hover:bg-slate-100'}`}><MessageSquare className="w-4 h-4" />Messages ({messages.length})</button>
+      <div className="flex gap-2 mb-6 overflow-x-auto">
+        <button onClick={() => setActiveTab('learners')} className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap ${activeTab === 'learners' ? 'bg-brand-100 text-brand-700' : 'text-slate-600 hover:bg-slate-100'}`}>Learners ({learners.length})</button>
+        <button onClick={() => setActiveTab('attendance')} className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap ${activeTab === 'attendance' ? 'bg-brand-100 text-brand-700' : 'text-slate-600 hover:bg-slate-100'}`}>Attendance</button>
+        {sessionData.progress_tracking_enabled && (
+          <button onClick={() => setActiveTab('progress')} className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap flex items-center gap-2 ${activeTab === 'progress' ? 'bg-brand-100 text-brand-700' : 'text-slate-600 hover:bg-slate-100'}`}>
+            <TrendingUp className="w-4 h-4" />Progress
+          </button>
+        )}
+        <button onClick={() => setActiveTab('messages')} className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap flex items-center gap-2 ${activeTab === 'messages' ? 'bg-brand-100 text-brand-700' : 'text-slate-600 hover:bg-slate-100'}`}>
+          <MessageSquare className="w-4 h-4" />Messages ({messages.length})
+        </button>
       </div>
 
       {loading ? (
         <div className="card p-6"><div className="h-32 bg-slate-100 rounded-xl animate-pulse" /></div>
       ) : (
         <>
+          {/* LEARNERS TAB */}
           {activeTab === 'learners' && (
             <div className="card p-6">
               {!isCancelled && (
@@ -624,6 +616,7 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
             </div>
           )}
 
+          {/* ATTENDANCE TAB */}
           {activeTab === 'attendance' && (
             <div className="card p-6">
               <h2 className="font-display font-semibold text-slate-800 mb-4">Attendance Records</h2>
@@ -652,6 +645,65 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
             </div>
           )}
 
+          {/* PROGRESS TAB */}
+          {activeTab === 'progress' && sessionData.progress_tracking_enabled && (
+            <div className="card p-6">
+              <h2 className="font-display font-semibold text-slate-800 mb-4">Progress Tracking</h2>
+              <p className="text-slate-500 text-sm mb-6">Select a learner to view and update their daily progress</p>
+
+              {learners.filter(l => l.learner_id).length > 0 ? (
+                <div className="space-y-3">
+                  {learners.filter(l => l.learner_id).map((learner) => {
+                    const learnerProgress = getProgressForLearner(learner.learner_id)
+                    const weeklyAvg = getWeeklyAveragesForLearner(learner.learner_id)
+                    const latestWeek = weeklyAvg[weeklyAvg.length - 1]
+
+                    return (
+                      <div key={learner.id} className="border border-slate-200 rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <p className="font-medium text-slate-800">{learner.learner_name || learner.learner_email}</p>
+                            <p className="text-sm text-slate-500">{learnerProgress.length} days recorded</p>
+                          </div>
+                          <button
+                            onClick={() => setSelectedLearnerForProgress(learner)}
+                            className="btn-secondary text-sm"
+                          >
+                            <TrendingUp className="w-4 h-4 mr-1" /> Manage Progress
+                          </button>
+                        </div>
+
+                        {latestWeek && (
+                          <div className="grid grid-cols-3 gap-3 mt-3 pt-3 border-t border-slate-100">
+                            <div className="text-center">
+                              <p className="text-xs text-slate-500 mb-1">Participation</p>
+                              <p className="font-bold text-lg text-orange-600">{latestWeek.participation ?? '--'}%</p>
+                            </div>
+                            <div className="text-center">
+                              <p className="text-xs text-slate-500 mb-1">Accuracy</p>
+                              <p className="font-bold text-lg text-blue-600">{latestWeek.accuracy ?? '--'}%</p>
+                            </div>
+                            <div className="text-center">
+                              <p className="text-xs text-slate-500 mb-1">Productivity</p>
+                              <p className="font-bold text-lg text-emerald-600">{latestWeek.productivity ?? '--'}%</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-slate-500">
+                  <TrendingUp className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                  <p>No learners with accounts enrolled</p>
+                  <p className="text-sm">Progress tracking requires learners to have user accounts</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* MESSAGES TAB */}
           {activeTab === 'messages' && (
             <div className="card p-6">
               {!isCancelled && (
@@ -696,10 +748,17 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
       )}
 
       {showEditModal && (
-        <EditModal
+        <EditModal session={sessionData} onClose={() => setShowEditModal(false)} onSuccess={() => { setShowEditModal(false); refreshSession(); onUpdate() }} />
+      )}
+
+      {selectedLearnerForProgress && (
+        <LearnerProgressModal
+          learner={selectedLearnerForProgress}
           session={sessionData}
-          onClose={() => setShowEditModal(false)}
-          onSuccess={() => { setShowEditModal(false); refreshSession(); onUpdate() }}
+          trainingDays={trainingDays}
+          existingProgress={getProgressForLearner(selectedLearnerForProgress.learner_id)}
+          onClose={() => setSelectedLearnerForProgress(null)}
+          onUpdate={fetchData}
         />
       )}
     </div>
@@ -714,20 +773,23 @@ function EditModal({ session, onClose, onSuccess }) {
   const [endDate, setEndDate] = useState(session.end_date || '')
   const [startTime, setStartTime] = useState(session.start_time || '09:00')
   const [endTime, setEndTime] = useState(session.end_time || '17:00')
+  const [progressTracking, setProgressTracking] = useState(session.progress_tracking_enabled || false)
   const [saving, setSaving] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setSaving(true)
     try {
-      const { error } = await supabase.from('training_sessions').update({ topic, audience, location: location || null, session_date: startDate, end_date: endDate || startDate, start_time: startTime, end_time: endTime }).eq('id', session.id)
+      const { error } = await supabase.from('training_sessions').update({
+        topic, audience, location: location || null,
+        session_date: startDate, end_date: endDate || startDate,
+        start_time: startTime, end_time: endTime,
+        progress_tracking_enabled: progressTracking
+      }).eq('id', session.id)
       if (error) throw error
       onSuccess()
-    } catch (error) {
-      alert('Failed to update: ' + error.message)
-    } finally {
-      setSaving(false)
-    }
+    } catch (error) { alert('Failed to update: ' + error.message) }
+    finally { setSaving(false) }
   }
 
   return (
@@ -776,11 +838,219 @@ function EditModal({ session, onClose, onSuccess }) {
             <label className="block text-sm font-medium text-slate-700 mb-2">Location</label>
             <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Room name, virtual link, etc." className="input" />
           </div>
+          <div className="bg-purple-50 rounded-xl p-4">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input type="checkbox" checked={progressTracking} onChange={(e) => setProgressTracking(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-purple-600" />
+              <span className="font-medium text-slate-800">Enable Progress Tracking</span>
+            </label>
+          </div>
           <div className="flex gap-3 pt-4">
             <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
             <button type="submit" disabled={saving} className="btn-primary flex-1">{saving ? 'Saving...' : 'Save Changes'}</button>
           </div>
         </form>
+      </div>
+    </div>
+  )
+}
+
+function LearnerProgressModal({ learner, session, trainingDays, existingProgress, onClose, onUpdate }) {
+  const [progressData, setProgressData] = useState({})
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    const initial = {}
+    trainingDays.forEach(day => {
+      const dateStr = format(day, 'yyyy-MM-dd')
+      const existing = existingProgress.find(p => p.progress_date === dateStr)
+      initial[dateStr] = {
+        participation: existing?.participation_score ?? '',
+        accuracy: existing?.accuracy_score ?? '',
+        productivity: existing?.productivity_score ?? '',
+        notes: existing?.notes ?? ''
+      }
+    })
+    setProgressData(initial)
+  }, [trainingDays, existingProgress])
+
+  const handleChange = (date, field, value) => {
+    setProgressData(prev => ({
+      ...prev,
+      [date]: { ...prev[date], [field]: value }
+    }))
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      for (const [date, data] of Object.entries(progressData)) {
+        const hasData = data.participation !== '' || data.accuracy !== '' || data.productivity !== '' || data.notes !== ''
+        if (!hasData) continue
+
+        const payload = {
+          session_id: session.id,
+          learner_id: learner.learner_id,
+          progress_date: date,
+          participation_score: data.participation !== '' ? parseInt(data.participation) : null,
+          accuracy_score: data.accuracy !== '' ? parseInt(data.accuracy) : null,
+          productivity_score: data.productivity !== '' ? parseInt(data.productivity) : null,
+          notes: data.notes || null,
+          updated_at: new Date().toISOString()
+        }
+
+        const { error } = await supabase
+          .from('learner_progress')
+          .upsert(payload, { onConflict: 'session_id,learner_id,progress_date' })
+
+        if (error) throw error
+      }
+      onUpdate()
+      onClose()
+    } catch (error) {
+      console.error('Error saving progress:', error)
+      alert('Failed to save progress: ' + error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Calculate weekly averages
+  const getWeeklyAverages = () => {
+    const weeks = {}
+    Object.entries(progressData).forEach(([dateStr, data]) => {
+      const date = parseISO(dateStr)
+      const weekStart = format(startOfWeek(date), 'yyyy-MM-dd')
+      if (!weeks[weekStart]) weeks[weekStart] = { participation: [], accuracy: [], productivity: [] }
+      if (data.participation !== '') weeks[weekStart].participation.push(parseInt(data.participation))
+      if (data.accuracy !== '') weeks[weekStart].accuracy.push(parseInt(data.accuracy))
+      if (data.productivity !== '') weeks[weekStart].productivity.push(parseInt(data.productivity))
+    })
+
+    return Object.entries(weeks).map(([weekStart, data]) => ({
+      week: weekStart,
+      participation: data.participation.length > 0 ? Math.round(data.participation.reduce((a, b) => a + b, 0) / data.participation.length) : null,
+      accuracy: data.accuracy.length > 0 ? Math.round(data.accuracy.reduce((a, b) => a + b, 0) / data.accuracy.length) : null,
+      productivity: data.productivity.length > 0 ? Math.round(data.productivity.reduce((a, b) => a + b, 0) / data.productivity.length) : null,
+    }))
+  }
+
+  const weeklyAverages = getWeeklyAverages()
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between p-5 border-b border-slate-200">
+          <div>
+            <h2 className="font-display text-lg font-semibold text-slate-800">Progress Tracking</h2>
+            <p className="text-sm text-slate-500">{learner.learner_name || learner.learner_email}</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg"><X className="w-5 h-5 text-slate-500" /></button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5">
+          {/* Weekly Summary */}
+          {weeklyAverages.length > 0 && (
+            <div className="mb-6">
+              <h3 className="font-medium text-slate-800 mb-3">Weekly Trends</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {weeklyAverages.map((week, idx) => (
+                  <div key={week.week} className="bg-slate-50 rounded-xl p-4">
+                    <h4 className="font-medium text-slate-700 mb-2">Week {idx + 1}</h4>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">Participation</span>
+                        <span className="font-medium text-orange-600">{week.participation !== null ? `${week.participation}%` : '--'}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">Accuracy</span>
+                        <span className="font-medium text-blue-600">{week.accuracy !== null ? `${week.accuracy}%` : '--'}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">Productivity</span>
+                        <span className="font-medium text-emerald-600">{week.productivity !== null ? `${week.productivity}%` : '--'}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Daily Scores */}
+          <h3 className="font-medium text-slate-800 mb-3">Daily Scores</h3>
+          <div className="space-y-4">
+            {trainingDays.map((day) => {
+              const dateStr = format(day, 'yyyy-MM-dd')
+              const data = progressData[dateStr] || {}
+              const isTodayDate = isToday(day)
+
+              return (
+                <div key={dateStr} className={`border rounded-xl p-4 ${isTodayDate ? 'border-brand-200 bg-brand-50/50' : 'border-slate-200'}`}>
+                  <h4 className="font-medium text-slate-800 mb-3">
+                    {format(day, 'EEEE, MMMM d, yyyy')}
+                    {isTodayDate && <span className="text-brand-600 ml-2">(Today)</span>}
+                  </h4>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-600 mb-1">Participation (0-100)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={data.participation}
+                        onChange={(e) => handleChange(dateStr, 'participation', e.target.value)}
+                        className="input"
+                        placeholder="--"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-600 mb-1">Accuracy (0-100)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={data.accuracy}
+                        onChange={(e) => handleChange(dateStr, 'accuracy', e.target.value)}
+                        className="input"
+                        placeholder="--"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-600 mb-1">Productivity (0-100)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={data.productivity}
+                        onChange={(e) => handleChange(dateStr, 'productivity', e.target.value)}
+                        className="input"
+                        placeholder="--"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-600 mb-1">Notes</label>
+                    <textarea
+                      value={data.notes}
+                      onChange={(e) => handleChange(dateStr, 'notes', e.target.value)}
+                      className="input resize-none h-16"
+                      placeholder="Add notes for this day..."
+                    />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="p-5 border-t border-slate-200 flex gap-3">
+          <button onClick={onClose} className="btn-secondary flex-1">Cancel</button>
+          <button onClick={handleSave} disabled={saving} className="btn-primary flex-1">
+            <Save className="w-4 h-4 mr-2" />{saving ? 'Saving...' : 'Save Progress'}
+          </button>
+        </div>
       </div>
     </div>
   )
