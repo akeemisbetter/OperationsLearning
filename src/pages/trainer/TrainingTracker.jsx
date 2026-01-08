@@ -1,13 +1,17 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { 
   BarChart3, Calendar, Users, Clock, Plus, X, 
   Trash2, UserPlus, Search, Check, MessageSquare,
   Lock, Globe, ArrowLeft, CheckCircle2, XCircle,
-  Edit, AlertTriangle, TrendingUp, Save
+  Edit, AlertTriangle, TrendingUp, Save, Download,
+  Upload, FileSpreadsheet, Award, ChevronDown
 } from 'lucide-react'
 import { format, parseISO, eachDayOfInterval, isBefore, isToday, startOfWeek } from 'date-fns'
+import { exportRoster, exportAttendance, exportProgress, parseImportFile, downloadImportTemplate } from '../../lib/exportService'
+import { sendNotification, sendBatchNotifications } from '../../lib/emailService'
+import { downloadCertificate } from '../../lib/certificateGenerator'
 
 const TOPICS = [
   { id: 'hrp_navigation', label: 'HRP Navigation' },
@@ -367,9 +371,12 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
   const [messages, setMessages] = useState([])
   const [attendance, setAttendance] = useState([])
   const [progress, setProgress] = useState([])
+  const [certificates, setCertificates] = useState([])
   const [loading, setLoading] = useState(true)
   const [sessionData, setSessionData] = useState(session)
   const [showEditModal, setShowEditModal] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [showExportMenu, setShowExportMenu] = useState(false)
   const [selectedLearnerForProgress, setSelectedLearnerForProgress] = useState(null)
 
   const [newMessage, setNewMessage] = useState('')
@@ -385,6 +392,8 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
   const [manualEmail, setManualEmail] = useState('')
   const [manualId, setManualId] = useState('')
 
+  const exportMenuRef = useRef(null)
+
   const startDate = parseISO(sessionData.session_date)
   const endDate = sessionData.end_date ? parseISO(sessionData.end_date) : startDate
   const isMultiDay = sessionData.end_date && sessionData.end_date !== sessionData.session_date
@@ -392,6 +401,16 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
   const isCancelled = sessionData.status === 'cancelled'
 
   useEffect(() => { fetchData() }, [sessionData.id])
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target)) {
+        setShowExportMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const fetchData = async () => {
     try {
@@ -419,6 +438,12 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
           .order('progress_date', { ascending: true })
         setProgress(progressData || [])
       }
+
+      const { data: certificatesData } = await supabase
+        .from('certificates')
+        .select('*')
+        .eq('session_id', sessionData.id)
+      setCertificates(certificatesData || [])
     } catch (error) {
       console.error('Error fetching data:', error)
     } finally {
@@ -450,7 +475,22 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
   const handleAddFromSearch = async (user) => {
     setSaving(true)
     try {
-      await supabase.from('session_enrollments').insert({ session_id: sessionData.id, learner_id: user.id, learner_name: user.full_name, learner_email: user.email, status: 'enrolled' })
+      await supabase.from('session_enrollments').insert({ 
+        session_id: sessionData.id, 
+        learner_id: user.id, 
+        learner_name: user.full_name, 
+        learner_email: user.email, 
+        status: 'enrolled' 
+      })
+      
+      // Send enrollment notification
+      await sendNotification(user.email, user.full_name, 'enrollment', {
+        learnerName: user.full_name,
+        sessionTopic: getTopicLabel(sessionData.topic),
+        sessionDate: format(startDate, 'MMMM d, yyyy'),
+        trainerName: profile.full_name
+      }, sessionData.id)
+
       setSearchQuery(''); setSearchResults([])
       fetchData()
     } catch (error) { alert('Failed to add learner') }
@@ -461,7 +501,24 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
     if (!manualName && !manualEmail && !manualId) { alert('Please enter at least a name, email, or ID'); return }
     setSaving(true)
     try {
-      await supabase.from('session_enrollments').insert({ session_id: sessionData.id, learner_name: manualName || null, learner_email: manualEmail || null, learner_unique_id: manualId || null, status: 'enrolled' })
+      await supabase.from('session_enrollments').insert({ 
+        session_id: sessionData.id, 
+        learner_name: manualName || null, 
+        learner_email: manualEmail || null, 
+        learner_unique_id: manualId || null, 
+        status: 'enrolled' 
+      })
+
+      // Send enrollment notification if email provided
+      if (manualEmail) {
+        await sendNotification(manualEmail, manualName || 'Learner', 'enrollment', {
+          learnerName: manualName || 'Learner',
+          sessionTopic: getTopicLabel(sessionData.topic),
+          sessionDate: format(startDate, 'MMMM d, yyyy'),
+          trainerName: profile.full_name
+        }, sessionData.id)
+      }
+
       setManualName(''); setManualEmail(''); setManualId(''); setShowManualEntry(false)
       fetchData()
     } catch (error) { alert('Failed to add learner') }
@@ -484,7 +541,39 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
     if (isPrivate && !selectedRecipient) { alert('Please select a recipient'); return }
     setSaving(true)
     try {
-      await supabase.from('training_messages').insert({ session_id: sessionData.id, sender_id: profile.id, recipient_id: isPrivate ? selectedRecipient : null, message: newMessage.trim(), is_private: isPrivate })
+      await supabase.from('training_messages').insert({ 
+        session_id: sessionData.id, 
+        sender_id: profile.id, 
+        recipient_id: isPrivate ? selectedRecipient : null, 
+        message: newMessage.trim(), 
+        is_private: isPrivate 
+      })
+
+      // Send notification
+      if (isPrivate) {
+        const recipient = learners.find(l => l.learner_id === selectedRecipient)
+        if (recipient?.learner_email) {
+          await sendNotification(recipient.learner_email, recipient.learner_name || 'Learner', 'message', {
+            learnerName: recipient.learner_name || 'Learner',
+            sessionTopic: getTopicLabel(sessionData.topic),
+            trainerName: profile.full_name,
+            isPrivate: true
+          }, sessionData.id)
+        }
+      } else {
+        // Notify all learners with emails
+        const recipients = learners.filter(l => l.learner_email).map(l => ({
+          email: l.learner_email,
+          name: l.learner_name || 'Learner'
+        }))
+        await sendBatchNotifications(recipients, 'message', (r) => ({
+          learnerName: r.name,
+          sessionTopic: getTopicLabel(sessionData.topic),
+          trainerName: profile.full_name,
+          isPrivate: false
+        }), sessionData.id)
+      }
+
       setNewMessage(''); setIsPrivate(false); setSelectedRecipient('')
       fetchData()
     } catch (error) { alert('Failed to send message') }
@@ -493,9 +582,99 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
 
   const handleCancelClass = async () => {
     if (!confirm('Are you sure you want to cancel this class? This will notify all enrolled learners.')) return
+    
     await supabase.from('training_sessions').update({ status: 'cancelled' }).eq('id', sessionData.id)
+
+    // Notify all learners
+    const recipients = learners.filter(l => l.learner_email).map(l => ({
+      email: l.learner_email,
+      name: l.learner_name || 'Learner'
+    }))
+    await sendBatchNotifications(recipients, 'cancellation', (r) => ({
+      learnerName: r.name,
+      sessionTopic: getTopicLabel(sessionData.topic),
+      sessionDate: format(startDate, 'MMMM d, yyyy'),
+      reason: ''
+    }), sessionData.id)
+
     refreshSession()
     onUpdate()
+  }
+
+  const handleIssueCertificate = async (learner) => {
+    if (!confirm(`Issue certificate to ${learner.learner_name || learner.learner_email}?`)) return
+
+    try {
+      const certificateNumber = `CERT-${format(new Date(), 'yyyyMMdd')}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
+      
+      // Save to database
+      const { error } = await supabase.from('certificates').insert({
+        session_id: sessionData.id,
+        learner_id: learner.learner_id,
+        learner_name: learner.learner_name || learner.learner_email,
+        learner_email: learner.learner_email,
+        certificate_number: certificateNumber
+      })
+
+      if (error) throw error
+
+      // Generate and download PDF
+      downloadCertificate({
+        learnerName: learner.learner_name || learner.learner_email || 'Learner',
+        sessionTopic: getTopicLabel(sessionData.topic),
+        trainerName: profile.full_name,
+        completionDate: format(new Date(), 'MMMM d, yyyy'),
+        certificateNumber: certificateNumber,
+        clientName: getClientLabel(sessionData.client)
+      })
+
+      // Send notification
+      if (learner.learner_email) {
+        await sendNotification(learner.learner_email, learner.learner_name || 'Learner', 'certificate', {
+          learnerName: learner.learner_name || 'Learner',
+          sessionTopic: getTopicLabel(sessionData.topic),
+          certificateNumber: certificateNumber
+        }, sessionData.id)
+      }
+
+      fetchData()
+      alert('Certificate issued successfully!')
+    } catch (error) {
+      console.error('Error issuing certificate:', error)
+      alert('Failed to issue certificate: ' + error.message)
+    }
+  }
+
+  const handleDownloadCertificate = (learner) => {
+    const cert = certificates.find(c => c.learner_id === learner.learner_id)
+    if (!cert) return
+
+    downloadCertificate({
+      learnerName: cert.learner_name || 'Learner',
+      sessionTopic: getTopicLabel(sessionData.topic),
+      trainerName: profile.full_name,
+      completionDate: format(new Date(cert.issued_at), 'MMMM d, yyyy'),
+      certificateNumber: cert.certificate_number,
+      clientName: getClientLabel(sessionData.client)
+    })
+  }
+
+  const handleExport = (type) => {
+    setShowExportMenu(false)
+    const topicLabel = getTopicLabel(sessionData.topic)
+    const clientLabel = getClientLabel(sessionData.client)
+
+    switch (type) {
+      case 'roster':
+        exportRoster(sessionData, learners, topicLabel, clientLabel)
+        break
+      case 'attendance':
+        exportAttendance(sessionData, attendance, learners, trainingDays, topicLabel, clientLabel)
+        break
+      case 'progress':
+        exportProgress(sessionData, progress, learners, trainingDays, topicLabel, clientLabel)
+        break
+    }
   }
 
   const getProgressForLearner = (learnerId) => progress.filter(p => p.learner_id === learnerId)
@@ -521,6 +700,8 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
       productivity: data.productivity.length > 0 ? Math.round(data.productivity.reduce((a, b) => a + b, 0) / data.productivity.length) : null,
     }))
   }
+
+  const hasCertificate = (learnerId) => certificates.some(c => c.learner_id === learnerId)
 
   return (
     <div className="max-w-5xl mx-auto animate-fade-in">
@@ -548,12 +729,38 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
               <span className={`badge ${sessionData.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'badge-amber'}`}>{sessionData.status || 'scheduled'}</span>
             </div>
           </div>
-          {!isCancelled && (
-            <div className="flex gap-2">
-              <button onClick={() => setShowEditModal(true)} className="btn-secondary text-sm"><Edit className="w-4 h-4 mr-1" />Edit</button>
-              <button onClick={handleCancelClass} className="px-3 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg"><XCircle className="w-4 h-4 mr-1 inline" />Cancel</button>
+          <div className="flex gap-2 flex-wrap">
+            {/* Export dropdown */}
+            <div className="relative" ref={exportMenuRef}>
+              <button 
+                onClick={() => setShowExportMenu(!showExportMenu)} 
+                className="btn-secondary text-sm flex items-center gap-1"
+              >
+                <Download className="w-4 h-4" />Export<ChevronDown className="w-4 h-4" />
+              </button>
+              {showExportMenu && (
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-slate-200 py-2 z-10">
+                  <button onClick={() => handleExport('roster')} className="w-full px-4 py-2 text-left text-sm hover:bg-slate-50 flex items-center gap-2">
+                    <FileSpreadsheet className="w-4 h-4 text-slate-500" />Class Roster
+                  </button>
+                  <button onClick={() => handleExport('attendance')} className="w-full px-4 py-2 text-left text-sm hover:bg-slate-50 flex items-center gap-2">
+                    <FileSpreadsheet className="w-4 h-4 text-slate-500" />Attendance
+                  </button>
+                  {sessionData.progress_tracking_enabled && (
+                    <button onClick={() => handleExport('progress')} className="w-full px-4 py-2 text-left text-sm hover:bg-slate-50 flex items-center gap-2">
+                      <FileSpreadsheet className="w-4 h-4 text-slate-500" />Progress Scores
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
-          )}
+            {!isCancelled && (
+              <>
+                <button onClick={() => setShowEditModal(true)} className="btn-secondary text-sm"><Edit className="w-4 h-4 mr-1" />Edit</button>
+                <button onClick={handleCancelClass} className="px-3 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg"><XCircle className="w-4 h-4 mr-1 inline" />Cancel</button>
+              </>
+            )}
+          </div>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
           <div><p className="text-slate-500 mb-1">Date</p><p className="font-medium text-slate-800">{format(startDate, 'MMM d, yyyy')}{isMultiDay && ` - ${format(endDate, 'MMM d, yyyy')}`}</p></div>
@@ -577,6 +784,9 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
             <TrendingUp className="w-4 h-4" />Progress
           </button>
         )}
+        <button onClick={() => setActiveTab('certificates')} className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap flex items-center gap-2 ${activeTab === 'certificates' ? 'bg-brand-100 text-brand-700' : 'text-slate-600 hover:bg-slate-100'}`}>
+          <Award className="w-4 h-4" />Certificates ({certificates.length})
+        </button>
         <button onClick={() => setActiveTab('messages')} className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap flex items-center gap-2 ${activeTab === 'messages' ? 'bg-brand-100 text-brand-700' : 'text-slate-600 hover:bg-slate-100'}`}>
           <MessageSquare className="w-4 h-4" />Messages ({messages.length})
         </button>
@@ -590,7 +800,12 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
             <div className="card p-6">
               {!isCancelled && (
                 <div className="bg-slate-50 rounded-xl p-4 mb-6">
-                  <h3 className="font-medium text-slate-800 mb-3">Add Learner</h3>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-medium text-slate-800">Add Learners</h3>
+                    <button onClick={() => setShowImportModal(true)} className="btn-secondary text-sm">
+                      <Upload className="w-4 h-4 mr-1" />Bulk Import
+                    </button>
+                  </div>
                   <div className="relative mb-3">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                     <input type="text" value={searchQuery} onChange={(e) => handleSearch(e.target.value)} placeholder="Search by name or email..." className="input pl-10" />
@@ -731,6 +946,59 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
             </div>
           )}
 
+          {activeTab === 'certificates' && (
+            <div className="card p-6">
+              <h2 className="font-display font-semibold text-slate-800 mb-4">Certificates</h2>
+              <p className="text-slate-500 text-sm mb-6">Issue completion certificates to learners</p>
+
+              {learners.filter(l => l.learner_id && l.status === 'attended').length > 0 ? (
+                <div className="space-y-3">
+                  {learners.filter(l => l.learner_id).map((learner) => {
+                    const hasIssuedCert = hasCertificate(learner.learner_id)
+                    const cert = certificates.find(c => c.learner_id === learner.learner_id)
+
+                    return (
+                      <div key={learner.id} className="flex items-center justify-between p-4 border border-slate-200 rounded-xl">
+                        <div>
+                          <p className="font-medium text-slate-800">{learner.learner_name || learner.learner_email}</p>
+                          <p className="text-sm text-slate-500">
+                            Status: <span className={learner.status === 'attended' ? 'text-green-600' : 'text-slate-500'}>{learner.status}</span>
+                            {hasIssuedCert && <span className="ml-2 text-purple-600">• Certificate Issued</span>}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {hasIssuedCert ? (
+                            <button onClick={() => handleDownloadCertificate(learner)} className="btn-secondary text-sm">
+                              <Download className="w-4 h-4 mr-1" />Download
+                            </button>
+                          ) : (
+                            <button 
+                              onClick={() => handleIssueCertificate(learner)} 
+                              disabled={learner.status !== 'attended'}
+                              className={`text-sm px-3 py-2 rounded-lg font-medium flex items-center gap-1 ${
+                                learner.status === 'attended' 
+                                  ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
+                                  : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                              }`}
+                            >
+                              <Award className="w-4 h-4" />Issue Certificate
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-slate-500">
+                  <Award className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                  <p>No learners eligible for certificates</p>
+                  <p className="text-sm">Mark learners as "Attended" to issue certificates</p>
+                </div>
+              )}
+            </div>
+          )}
+
           {activeTab === 'messages' && (
             <div className="card p-6">
               {!isCancelled && (
@@ -776,6 +1044,17 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
 
       {showEditModal && (
         <EditModal session={sessionData} onClose={() => setShowEditModal(false)} onSuccess={() => { setShowEditModal(false); refreshSession(); onUpdate() }} />
+      )}
+
+      {showImportModal && (
+        <ImportModal 
+          sessionId={sessionData.id} 
+          sessionTopic={getTopicLabel(sessionData.topic)}
+          sessionDate={format(startDate, 'MMMM d, yyyy')}
+          trainerName={profile.full_name}
+          onClose={() => setShowImportModal(false)} 
+          onSuccess={() => { setShowImportModal(false); fetchData() }} 
+        />
       )}
 
       {selectedLearnerForProgress && (
@@ -898,6 +1177,159 @@ function EditModal({ session, onClose, onSuccess }) {
             <button type="submit" disabled={saving} className="btn-primary flex-1">{saving ? 'Saving...' : 'Save Changes'}</button>
           </div>
         </form>
+      </div>
+    </div>
+  )
+}
+
+function ImportModal({ sessionId, sessionTopic, sessionDate, trainerName, onClose, onSuccess }) {
+  const [file, setFile] = useState(null)
+  const [parsedData, setParsedData] = useState([])
+  const [importing, setImporting] = useState(false)
+  const [error, setError] = useState('')
+  const fileInputRef = useRef(null)
+
+  const handleFileChange = async (e) => {
+    const selectedFile = e.target.files[0]
+    if (!selectedFile) return
+
+    setFile(selectedFile)
+    setError('')
+
+    try {
+      const data = await parseImportFile(selectedFile)
+      setParsedData(data)
+    } catch (err) {
+      setError(err.message)
+      setParsedData([])
+    }
+  }
+
+  const handleImport = async () => {
+    if (parsedData.length === 0) return
+
+    setImporting(true)
+    try {
+      let successCount = 0
+      let errorCount = 0
+
+      for (const learner of parsedData) {
+        try {
+          await supabase.from('session_enrollments').insert({
+            session_id: sessionId,
+            learner_name: learner.name || null,
+            learner_email: learner.email || null,
+            learner_unique_id: learner.uniqueId || null,
+            status: 'enrolled'
+          })
+
+          // Send notification if email provided
+          if (learner.email) {
+            await sendNotification(learner.email, learner.name || 'Learner', 'enrollment', {
+              learnerName: learner.name || 'Learner',
+              sessionTopic: sessionTopic,
+              sessionDate: sessionDate,
+              trainerName: trainerName
+            }, sessionId)
+          }
+
+          successCount++
+        } catch (err) {
+          errorCount++
+          console.error('Error importing learner:', err)
+        }
+      }
+
+      alert(`Import complete! ${successCount} learners added, ${errorCount} errors.`)
+      onSuccess()
+    } catch (err) {
+      setError('Import failed: ' + err.message)
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl w-full max-w-xl max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between p-5 border-b border-slate-200">
+          <h2 className="font-display text-lg font-semibold text-slate-800">Bulk Import Learners</h2>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg"><X className="w-5 h-5 text-slate-500" /></button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5">
+          <div className="bg-blue-50 rounded-xl p-4 mb-4">
+            <p className="text-sm text-blue-800 mb-2">Upload a CSV or Excel file with learner information.</p>
+            <p className="text-sm text-blue-600">Required columns: <strong>Name</strong>, <strong>Email</strong>, or <strong>ID</strong> (at least one)</p>
+            <button onClick={downloadImportTemplate} className="mt-2 text-sm text-blue-700 font-medium underline">
+              Download Template
+            </button>
+          </div>
+
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            accept=".csv,.xlsx,.xls"
+            className="hidden"
+          />
+
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="w-full p-8 border-2 border-dashed border-slate-300 rounded-xl hover:border-brand-400 hover:bg-brand-50 transition-colors mb-4"
+          >
+            <Upload className="w-10 h-10 text-slate-400 mx-auto mb-2" />
+            <p className="text-slate-600 font-medium">{file ? file.name : 'Click to select file'}</p>
+            <p className="text-sm text-slate-400 mt-1">CSV or Excel (.xlsx, .xls)</p>
+          </button>
+
+          {error && (
+            <div className="bg-red-50 text-red-700 p-3 rounded-lg mb-4 text-sm">
+              {error}
+            </div>
+          )}
+
+          {parsedData.length > 0 && (
+            <div>
+              <h3 className="font-medium text-slate-800 mb-2">Preview ({parsedData.length} learners)</h3>
+              <div className="border border-slate-200 rounded-lg max-h-48 overflow-y-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 sticky top-0">
+                    <tr>
+                      <th className="text-left p-2 font-medium text-slate-600">Name</th>
+                      <th className="text-left p-2 font-medium text-slate-600">Email</th>
+                      <th className="text-left p-2 font-medium text-slate-600">ID</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {parsedData.slice(0, 10).map((learner, idx) => (
+                      <tr key={idx}>
+                        <td className="p-2 text-slate-800">{learner.name || '-'}</td>
+                        <td className="p-2 text-slate-600">{learner.email || '-'}</td>
+                        <td className="p-2 text-slate-600">{learner.uniqueId || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {parsedData.length > 10 && (
+                  <p className="text-center text-sm text-slate-500 py-2">...and {parsedData.length - 10} more</p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="p-5 border-t border-slate-200 flex gap-3">
+          <button onClick={onClose} className="btn-secondary flex-1">Cancel</button>
+          <button 
+            onClick={handleImport} 
+            disabled={parsedData.length === 0 || importing} 
+            className="btn-primary flex-1"
+          >
+            <Upload className="w-4 h-4 mr-2" />
+            {importing ? 'Importing...' : `Import ${parsedData.length} Learners`}
+          </button>
+        </div>
       </div>
     </div>
   )
