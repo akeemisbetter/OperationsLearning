@@ -4,9 +4,10 @@ import { supabase } from '../../lib/supabase'
 import { 
   GraduationCap, BookOpen, Calendar, Clock, CheckCircle2, 
   XCircle, ArrowLeft, MessageSquare, User, Lock, Globe,
-  ChevronRight, TrendingUp, BarChart3, AlertTriangle, Award, Download
+  ChevronRight, TrendingUp, BarChart3, AlertTriangle, Award, Download,
+  Star, Send
 } from 'lucide-react'
-import { format, eachDayOfInterval, parseISO, isBefore, isToday, startOfWeek, endOfWeek } from 'date-fns'
+import { format, eachDayOfInterval, parseISO, isBefore, isToday, startOfWeek } from 'date-fns'
 import { downloadCertificate } from '../../lib/certificateGenerator'
 
 const TOPICS = {
@@ -37,14 +38,18 @@ function MyLearning() {
   const { profile } = useAuth()
   const [enrollments, setEnrollments] = useState([])
   const [certificates, setCertificates] = useState([])
+  const [feedbackSubmissions, setFeedbackSubmissions] = useState([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('active')
   const [selectedTraining, setSelectedTraining] = useState(null)
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false)
+  const [feedbackSession, setFeedbackSession] = useState(null)
 
   useEffect(() => {
     if (profile) {
       fetchEnrollments()
       fetchCertificates()
+      fetchFeedbackSubmissions()
     }
   }, [profile])
 
@@ -104,6 +109,20 @@ function MyLearning() {
     }
   }
 
+  const fetchFeedbackSubmissions = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('feedback_submissions')
+        .select('session_id')
+        .eq('learner_id', profile.id)
+
+      if (error) throw error
+      setFeedbackSubmissions(data?.map(f => f.session_id) || [])
+    } catch (error) {
+      console.error('Error fetching feedback submissions:', error)
+    }
+  }
+
   const handleDownloadCertificate = (cert) => {
     downloadCertificate({
       learnerName: cert.learner_name || profile.full_name || 'Learner',
@@ -114,6 +133,19 @@ function MyLearning() {
       clientName: CLIENTS[cert.training_sessions?.client] || cert.training_sessions?.client || ''
     })
   }
+
+  const openFeedbackModal = (session) => {
+    setFeedbackSession(session)
+    setShowFeedbackModal(true)
+  }
+
+  const handleFeedbackSubmitted = () => {
+    setShowFeedbackModal(false)
+    setFeedbackSession(null)
+    fetchFeedbackSubmissions()
+  }
+
+  const hasFeedbackSubmitted = (sessionId) => feedbackSubmissions.includes(sessionId)
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -263,11 +295,37 @@ function MyLearning() {
             </div>
           )}
         </div>
-      ) : (
-        // Training Tabs (Active, Completed, Cancelled)
+      ) : activeTab === 'completed' ? (
+        // Completed Tab with Feedback Option
         <div className="space-y-4">
-          {(activeTab === 'active' ? activeEnrollments : activeTab === 'completed' ? pastEnrollments : cancelledEnrollments).length > 0 ? (
-            (activeTab === 'active' ? activeEnrollments : activeTab === 'completed' ? pastEnrollments : cancelledEnrollments).map((enrollment) => (
+          {pastEnrollments.length > 0 ? (
+            pastEnrollments.map((enrollment) => (
+              <TrainingCard
+                key={enrollment.id}
+                enrollment={enrollment}
+                onClick={() => setSelectedTraining(enrollment)}
+                showFeedback={true}
+                hasFeedback={hasFeedbackSubmitted(enrollment.training_sessions.id)}
+                onFeedbackClick={() => openFeedbackModal(enrollment.training_sessions)}
+              />
+            ))
+          ) : (
+            <div className="card p-12 text-center">
+              <GraduationCap className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+              <h3 className="font-display font-semibold text-slate-800 mb-2">
+                No completed trainings
+              </h3>
+              <p className="text-slate-500">
+                Your completed trainings will appear here
+              </p>
+            </div>
+          )}
+        </div>
+      ) : (
+        // Active/Cancelled Tabs
+        <div className="space-y-4">
+          {(activeTab === 'active' ? activeEnrollments : cancelledEnrollments).length > 0 ? (
+            (activeTab === 'active' ? activeEnrollments : cancelledEnrollments).map((enrollment) => (
               <TrainingCard
                 key={enrollment.id}
                 enrollment={enrollment}
@@ -278,7 +336,7 @@ function MyLearning() {
             <div className="card p-12 text-center">
               <GraduationCap className="w-12 h-12 text-slate-300 mx-auto mb-4" />
               <h3 className="font-display font-semibold text-slate-800 mb-2">
-                {activeTab === 'active' ? 'No active trainings' : activeTab === 'completed' ? 'No completed trainings' : 'No cancelled trainings'}
+                {activeTab === 'active' ? 'No active trainings' : 'No cancelled trainings'}
               </h3>
               <p className="text-slate-500">
                 {activeTab === 'active' && 'You will see trainings here once a trainer enrolls you'}
@@ -286,6 +344,16 @@ function MyLearning() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Feedback Modal */}
+      {showFeedbackModal && feedbackSession && (
+        <FeedbackModal
+          session={feedbackSession}
+          learnerId={profile.id}
+          onClose={() => setShowFeedbackModal(false)}
+          onSubmitted={handleFeedbackSubmitted}
+        />
       )}
     </div>
   )
@@ -310,7 +378,7 @@ function StatCard({ icon: Icon, value, label, color }) {
   )
 }
 
-function TrainingCard({ enrollment, onClick }) {
+function TrainingCard({ enrollment, onClick, showFeedback, hasFeedback, onFeedbackClick }) {
   const session = enrollment.training_sessions
   if (!session) return null
 
@@ -325,44 +393,277 @@ function TrainingCard({ enrollment, onClick }) {
   const isOngoing = !isCancelled && !isBefore(sessionEndDate, today) && !isBefore(today, startDate)
 
   return (
-    <div
-      onClick={onClick}
-      className={`card p-5 cursor-pointer hover:border-brand-200 transition-all group ${isCancelled ? 'opacity-60' : ''}`}
-    >
-      <div className="flex items-center justify-between">
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-2">
-            <h3 className="font-semibold text-slate-800 group-hover:text-brand-700 transition-colors">
-              {TOPICS[session.topic] || session.topic || 'Training'}
-            </h3>
-            {isCancelled && (
-              <span className="badge bg-red-100 text-red-700">Cancelled</span>
-            )}
-            {isOngoing && !isCancelled && (
-              <span className="badge bg-green-100 text-green-700">In Progress</span>
-            )}
-            {session.progress_tracking_enabled && !isCancelled && (
-              <span className="badge badge-purple">Progress Tracked</span>
-            )}
+    <div className={`card p-5 ${isCancelled ? 'opacity-60' : ''}`}>
+      <div
+        onClick={onClick}
+        className="cursor-pointer hover:bg-slate-50 -m-5 p-5 rounded-2xl transition-colors"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-2">
+              <h3 className="font-semibold text-slate-800 group-hover:text-brand-700 transition-colors">
+                {TOPICS[session.topic] || session.topic || 'Training'}
+              </h3>
+              {isCancelled && (
+                <span className="badge bg-red-100 text-red-700">Cancelled</span>
+              )}
+              {isOngoing && !isCancelled && (
+                <span className="badge bg-green-100 text-green-700">In Progress</span>
+              )}
+              {session.progress_tracking_enabled && !isCancelled && (
+                <span className="badge badge-purple">Progress Tracked</span>
+              )}
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500">
+              <span className="flex items-center gap-1">
+                <Calendar className="w-4 h-4" />
+                {format(startDate, 'MMM d, yyyy')}
+                {isMultiDay && <span> - {format(endDate, 'MMM d, yyyy')}</span>}
+              </span>
+              <span className="flex items-center gap-1">
+                <Clock className="w-4 h-4" />
+                {formatTime(session.start_time)} - {formatTime(session.end_time)}
+              </span>
+              <span className="flex items-center gap-1">
+                <User className="w-4 h-4" />
+                {session.profiles?.full_name || 'Trainer'}
+              </span>
+            </div>
           </div>
-          
-          <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500">
-            <span className="flex items-center gap-1">
-              <Calendar className="w-4 h-4" />
-              {format(startDate, 'MMM d, yyyy')}
-              {isMultiDay && <span> - {format(endDate, 'MMM d, yyyy')}</span>}
-            </span>
-            <span className="flex items-center gap-1">
-              <Clock className="w-4 h-4" />
-              {formatTime(session.start_time)} - {formatTime(session.end_time)}
-            </span>
-            <span className="flex items-center gap-1">
-              <User className="w-4 h-4" />
-              {session.profiles?.full_name || 'Trainer'}
-            </span>
+          <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-brand-600 transition-colors" />
+        </div>
+      </div>
+
+      {/* Feedback Section for Completed Trainings */}
+      {showFeedback && !isCancelled && (
+        <div className="mt-4 pt-4 border-t border-slate-100">
+          {hasFeedback ? (
+            <div className="flex items-center gap-2 text-sm text-emerald-600">
+              <CheckCircle2 className="w-4 h-4" />
+              <span>Feedback submitted - Thank you!</span>
+            </div>
+          ) : (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onFeedbackClick()
+              }}
+              className="flex items-center gap-2 text-sm text-brand-600 hover:text-brand-700 font-medium"
+            >
+              <Star className="w-4 h-4" />
+              Leave Anonymous Feedback
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FeedbackModal({ session, learnerId, onClose, onSubmitted }) {
+  const [overallRating, setOverallRating] = useState(0)
+  const [trainerRating, setTrainerRating] = useState(0)
+  const [contentRating, setContentRating] = useState(0)
+  const [paceRating, setPaceRating] = useState(0)
+  const [feedbackText, setFeedbackText] = useState('')
+  const [improvements, setImprovements] = useState('')
+  const [wouldRecommend, setWouldRecommend] = useState(null)
+  const [submitting, setSubmitting] = useState(false)
+
+  const handleSubmit = async () => {
+    if (overallRating === 0) {
+      alert('Please provide an overall rating')
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      // Submit anonymous feedback
+      const { error: feedbackError } = await supabase
+        .from('anonymous_feedback')
+        .insert({
+          session_id: session.id,
+          rating: overallRating,
+          trainer_rating: trainerRating || null,
+          content_rating: contentRating || null,
+          pace_rating: paceRating || null,
+          feedback_text: feedbackText || null,
+          improvements: improvements || null,
+          would_recommend: wouldRecommend
+        })
+
+      if (feedbackError) throw feedbackError
+
+      // Record that this user submitted feedback (to prevent duplicates)
+      const { error: submissionError } = await supabase
+        .from('feedback_submissions')
+        .insert({
+          session_id: session.id,
+          learner_id: learnerId
+        })
+
+      if (submissionError) throw submissionError
+
+      onSubmitted()
+    } catch (error) {
+      console.error('Error submitting feedback:', error)
+      alert('Failed to submit feedback. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const StarRating = ({ value, onChange, label }) => (
+    <div className="mb-4">
+      <label className="block text-sm font-medium text-slate-700 mb-2">{label}</label>
+      <div className="flex gap-1">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <button
+            key={star}
+            type="button"
+            onClick={() => onChange(star)}
+            className="p-1 hover:scale-110 transition-transform"
+          >
+            <Star
+              className={`w-8 h-8 ${
+                star <= value
+                  ? 'text-amber-400 fill-amber-400'
+                  : 'text-slate-300 hover:text-amber-200'
+              }`}
+            />
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="p-5 border-b border-slate-200">
+          <h2 className="font-display text-lg font-semibold text-slate-800">
+            Training Feedback
+          </h2>
+          <p className="text-sm text-slate-500 mt-1">
+            {TOPICS[session.topic] || session.topic}
+          </p>
+        </div>
+
+        <div className="p-5">
+          {/* Anonymous Notice */}
+          <div className="bg-blue-50 rounded-xl p-4 mb-6">
+            <p className="text-sm text-blue-800">
+              <strong>Your feedback is anonymous.</strong> Your responses help us improve our training programs. Only administrators can view this feedback.
+            </p>
+          </div>
+
+          {/* Overall Rating */}
+          <StarRating
+            value={overallRating}
+            onChange={setOverallRating}
+            label="Overall Experience *"
+          />
+
+          {/* Trainer Rating */}
+          <StarRating
+            value={trainerRating}
+            onChange={setTrainerRating}
+            label="Trainer Effectiveness"
+          />
+
+          {/* Content Rating */}
+          <StarRating
+            value={contentRating}
+            onChange={setContentRating}
+            label="Content Quality"
+          />
+
+          {/* Pace Rating */}
+          <StarRating
+            value={paceRating}
+            onChange={setPaceRating}
+            label="Training Pace"
+          />
+
+          {/* Would Recommend */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-slate-700 mb-2">
+              Would you recommend this training?
+            </label>
+            <div className="flex gap-4">
+              <button
+                type="button"
+                onClick={() => setWouldRecommend(true)}
+                className={`flex-1 py-3 px-4 rounded-xl border-2 transition-colors flex items-center justify-center gap-2 ${
+                  wouldRecommend === true
+                    ? 'border-green-500 bg-green-50 text-green-700'
+                    : 'border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                <CheckCircle2 className="w-5 h-5" />
+                Yes
+              </button>
+              <button
+                type="button"
+                onClick={() => setWouldRecommend(false)}
+                className={`flex-1 py-3 px-4 rounded-xl border-2 transition-colors flex items-center justify-center gap-2 ${
+                  wouldRecommend === false
+                    ? 'border-red-500 bg-red-50 text-red-700'
+                    : 'border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                <XCircle className="w-5 h-5" />
+                No
+              </button>
+            </div>
+          </div>
+
+          {/* Comments */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-slate-700 mb-2">
+              Additional Comments
+            </label>
+            <textarea
+              value={feedbackText}
+              onChange={(e) => setFeedbackText(e.target.value)}
+              placeholder="Share your thoughts about the training..."
+              className="input resize-none h-24"
+            />
+          </div>
+
+          {/* Improvements */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-slate-700 mb-2">
+              Suggestions for Improvement
+            </label>
+            <textarea
+              value={improvements}
+              onChange={(e) => setImprovements(e.target.value)}
+              placeholder="What could be improved?"
+              className="input resize-none h-20"
+            />
+          </div>
+
+          {/* Buttons */}
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="btn-secondary flex-1"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={submitting || overallRating === 0}
+              className="btn-primary flex-1"
+            >
+              <Send className="w-4 h-4 mr-2" />
+              {submitting ? 'Submitting...' : 'Submit Feedback'}
+            </button>
           </div>
         </div>
-        <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-brand-600 transition-colors" />
       </div>
     </div>
   )
