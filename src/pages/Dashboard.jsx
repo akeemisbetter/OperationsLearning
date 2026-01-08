@@ -12,9 +12,28 @@ import {
   Clock,
   ArrowRight,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  GraduationCap
 } from 'lucide-react'
-import { format } from 'date-fns'
+import { format, parseISO } from 'date-fns'
+
+// Helper to format time in 12-hour format
+const formatTime = (timeStr) => {
+  if (!timeStr) return 'TBD'
+  const [hours, minutes] = timeStr.split(':')
+  const date = new Date()
+  date.setHours(parseInt(hours), parseInt(minutes))
+  return format(date, 'h:mm a')
+}
+
+const TOPICS = {
+  hrp_navigation: 'HRP Navigation',
+  hr_answers_standard: 'HR Answers Standard',
+  hr_answers_adhoc: 'HR Answers Adhoc',
+  dlp_role_specific: 'DLP-Role Specific',
+  learninglab: 'LearningLab',
+  refresher: 'Refresher',
+}
 
 function Dashboard() {
   const { profile, isTrainer } = useAuth()
@@ -48,7 +67,6 @@ function Dashboard() {
         setUpcomingSessions(sessions || [])
       } else {
         // Learners see sessions they are enrolled in
-        // Check by learner_id, learner_email, or learner_unique_id
         const { data: enrollments } = await supabase
           .from('session_enrollments')
           .select(`
@@ -59,6 +77,7 @@ function Dashboard() {
               topic,
               audience,
               session_date,
+              end_date,
               start_time,
               end_time,
               location,
@@ -125,17 +144,7 @@ function Dashboard() {
     }
   }
 
-  const getTopicLabel = (topic) => {
-    const topics = {
-      hrp_navigation: 'HRP Navigation',
-      hr_answers_standard: 'HR Answers Standard',
-      hr_answers_adhoc: 'HR Answers Adhoc',
-      dlp_role_specific: 'DLP-Role Specific',
-      learninglab: 'LearningLab',
-      refresher: 'Refresher',
-    }
-    return topics[topic] || topic || 'Training Session'
-  }
+  const getTopicLabel = (topic) => TOPICS[topic] || topic || 'Training Session'
 
   const getAudienceBadge = (audience) => {
     if (audience === 'internal') return 'badge-blue'
@@ -152,7 +161,7 @@ function Dashboard() {
         </h1>
         <p className="text-slate-500">
           {isTrainer
-            ? "Here's what's happening with your training sessions."
+            ? "Here's what's happening with your training classes."
             : 'Track your progress and view your upcoming training.'}
         </p>
       </div>
@@ -163,7 +172,7 @@ function Dashboard() {
           <>
             <StatCard
               icon={Calendar}
-              label="Sessions Scheduled"
+              label="Classes Scheduled"
               value={stats.sessionsDelivered || 0}
               color="brand"
             />
@@ -222,9 +231,9 @@ function Dashboard() {
         <div className="lg:col-span-2 card p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="font-display text-lg font-semibold text-slate-800">
-              {isTrainer ? 'Your Upcoming Sessions' : 'My Upcoming Training'}
+              {isTrainer ? 'Your Upcoming Classes' : 'My Upcoming Training'}
             </h2>
-            <Link to="/calendar" className="btn-ghost text-sm">
+            <Link to={isTrainer ? "/trainer/tracking" : "/calendar"} className="btn-ghost text-sm">
               View all <ArrowRight className="w-4 h-4 ml-1" />
             </Link>
           </div>
@@ -237,41 +246,52 @@ function Dashboard() {
             </div>
           ) : upcomingSessions.length > 0 ? (
             <div className="space-y-3">
-              {upcomingSessions.map((session) => (
-                <div
-                  key={session.id}
-                  className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors"
-                >
-                  <div className="w-14 h-14 rounded-xl bg-brand-100 flex flex-col items-center justify-center">
-                    <span className="text-xs font-medium text-brand-600">
-                      {format(new Date(session.session_date), 'MMM')}
-                    </span>
-                    <span className="text-lg font-bold text-brand-700">
-                      {format(new Date(session.session_date), 'd')}
-                    </span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-medium text-slate-800 truncate">
-                      {getTopicLabel(session.topic)}
-                    </h3>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className={`badge ${getAudienceBadge(session.audience)}`}>
-                        {session.audience || 'General'}
+              {upcomingSessions.map((session) => {
+                const startDate = parseISO(session.session_date)
+                const endDate = session.end_date ? parseISO(session.end_date) : null
+                const isMultiDay = endDate && session.end_date !== session.session_date
+
+                return (
+                  <div
+                    key={session.id}
+                    className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors"
+                  >
+                    <div className="w-14 h-14 rounded-xl bg-brand-100 flex flex-col items-center justify-center">
+                      <span className="text-xs font-medium text-brand-600">
+                        {format(startDate, 'MMM')}
                       </span>
-                      <span className="text-sm text-slate-500">
-                        {session.start_time?.slice(0, 5)}
+                      <span className="text-lg font-bold text-brand-700">
+                        {format(startDate, 'd')}
                       </span>
                     </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-medium text-slate-800 truncate">
+                        {getTopicLabel(session.topic)}
+                      </h3>
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <span className={`badge ${getAudienceBadge(session.audience)}`}>
+                          {session.audience || 'General'}
+                        </span>
+                        <span className="text-sm text-slate-500">
+                          {formatTime(session.start_time)}
+                        </span>
+                        {isMultiDay && (
+                          <span className="text-sm text-slate-500">
+                            • {format(startDate, 'MMM d')} - {format(endDate, 'MMM d')}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <CheckCircle2 className="w-5 h-5 text-slate-300" />
                   </div>
-                  <CheckCircle2 className="w-5 h-5 text-slate-300" />
-                </div>
-              ))}
+                )
+              })}
             </div>
           ) : (
             <div className="text-center py-8">
               <Calendar className="w-12 h-12 text-slate-300 mx-auto mb-3" />
               <p className="text-slate-500">
-                {isTrainer ? 'No upcoming sessions scheduled' : 'No training sessions assigned to you yet'}
+                {isTrainer ? 'No upcoming classes scheduled' : 'No training sessions assigned to you yet'}
               </p>
             </div>
           )}
@@ -330,17 +350,17 @@ function Dashboard() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {isTrainer ? (
             <>
-              <QuickActionCard to="/trainer/checkin" icon={CheckCircle2} label="Check In" />
-              <QuickActionCard to="/trainer/qa-board" icon={MessageSquare} label="Team Q&A" />
+              <QuickActionCard to="/trainer/tracking" icon={GraduationCap} label="My Classes" />
               <QuickActionCard to="/trainer/learner-questions" icon={Users} label="Answer Questions" />
-              <QuickActionCard to="/trainer/tracking" icon={Calendar} label="Training Tracker" />
+              <QuickActionCard to="/resources" icon={BookOpen} label="Resources" />
+              <QuickActionCard to="/calendar" icon={Calendar} label="Calendar" />
             </>
           ) : (
             <>
-              <QuickActionCard to="/my-learning" icon={BookOpen} label="My Courses" />
+              <QuickActionCard to="/my-learning" icon={BookOpen} label="My Learning" />
               <QuickActionCard to="/ask-trainer" icon={MessageSquare} label="Ask a Trainer" />
-              <QuickActionCard to="/resources" icon={BookOpen} label="Job Aids" />
-              <QuickActionCard to="/calendar" icon={Calendar} label="Schedule" />
+              <QuickActionCard to="/resources" icon={BookOpen} label="Resources" />
+              <QuickActionCard to="/calendar" icon={Calendar} label="Calendar" />
             </>
           )}
         </div>
