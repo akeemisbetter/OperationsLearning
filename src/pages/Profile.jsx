@@ -48,10 +48,8 @@ function Profile() {
   const [profileError, setProfileError] = useState('')
 
   // Password form state
-  const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [changingPassword, setChangingPassword] = useState(false)
@@ -135,21 +133,24 @@ function Profile() {
     }
 
     try {
-      // Update password
-      const { error } = await supabase.auth.updateUser({
+      const { data, error } = await supabase.auth.updateUser({
         password: newPassword
       })
 
-      if (error) throw error
+      if (error) {
+        console.error('Password update error:', error)
+        throw error
+      }
 
+      console.log('Password update response:', data)
+      
       setPasswordSuccess(true)
-      setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
       setTimeout(() => setPasswordSuccess(false), 3000)
     } catch (error) {
       console.error('Error changing password:', error)
-      setPasswordError(error.message || 'Failed to change password')
+      setPasswordError(error.message || 'Failed to change password. Please try logging out and back in, then try again.')
     } finally {
       setChangingPassword(false)
     }
