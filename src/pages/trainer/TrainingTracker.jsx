@@ -6,7 +6,7 @@ import {
   Trash2, UserPlus, Search, Check, MessageSquare,
   Lock, Globe, ArrowLeft, CheckCircle2, XCircle,
   Edit, AlertTriangle, TrendingUp, Save, Download,
-  Upload, FileSpreadsheet, Award, ChevronDown
+  Upload, FileSpreadsheet, Award, ChevronDown, Filter
 } from 'lucide-react'
 import { format, parseISO, eachDayOfInterval, isBefore, isToday, startOfWeek } from 'date-fns'
 import { exportRoster, exportAttendance, exportProgress, parseImportFile, downloadImportTemplate } from '../../lib/exportService'
@@ -54,6 +54,14 @@ function TrainingTracker() {
   const [selectedSession, setSelectedSession] = useState(null)
   const [activeFilter, setActiveFilter] = useState('upcoming')
 
+  // Filter & Search state
+  const [filterClient, setFilterClient] = useState('')
+  const [filterTopic, setFilterTopic] = useState('')
+  const [filterDateFrom, setFilterDateFrom] = useState('')
+  const [filterDateTo, setFilterDateTo] = useState('')
+  const [globalSearch, setGlobalSearch] = useState('')
+  const [showFilters, setShowFilters] = useState(false)
+
   useEffect(() => {
     if (profile) fetchSessions()
   }, [profile])
@@ -88,13 +96,58 @@ function TrainingTracker() {
   const cancelledSessions = sessions.filter(s => s.status === 'cancelled')
 
   const getFilteredSessions = () => {
+    let filtered = []
+    
     switch (activeFilter) {
-      case 'upcoming': return upcomingSessions
-      case 'past': return pastSessions
-      case 'cancelled': return cancelledSessions
-      default: return sessions
+      case 'upcoming': filtered = upcomingSessions; break
+      case 'past': filtered = pastSessions; break
+      case 'cancelled': filtered = cancelledSessions; break
+      default: filtered = sessions
     }
+
+    // Apply client filter
+    if (filterClient) {
+      filtered = filtered.filter(s => s.client === filterClient)
+    }
+
+    // Apply topic filter
+    if (filterTopic) {
+      filtered = filtered.filter(s => s.topic === filterTopic)
+    }
+
+    // Apply date range filter
+    if (filterDateFrom) {
+      filtered = filtered.filter(s => s.session_date >= filterDateFrom)
+    }
+    if (filterDateTo) {
+      filtered = filtered.filter(s => {
+        const endDate = s.end_date || s.session_date
+        return endDate <= filterDateTo
+      })
+    }
+
+    // Apply global search (searches topic, client, notes)
+    if (globalSearch.trim()) {
+      const search = globalSearch.toLowerCase()
+      filtered = filtered.filter(s => 
+        getTopicLabel(s.topic).toLowerCase().includes(search) ||
+        getClientLabel(s.client).toLowerCase().includes(search) ||
+        (s.notes && s.notes.toLowerCase().includes(search))
+      )
+    }
+
+    return filtered
   }
+
+  const clearFilters = () => {
+    setFilterClient('')
+    setFilterTopic('')
+    setFilterDateFrom('')
+    setFilterDateTo('')
+    setGlobalSearch('')
+  }
+
+  const hasActiveFilters = filterClient || filterTopic || filterDateFrom || filterDateTo || globalSearch
 
   if (selectedSession) {
     return (
@@ -157,6 +210,94 @@ function TrainingTracker() {
         </div>
       </div>
 
+      {/* Search and Filter Section */}
+      <div className="card p-4 mb-6">
+        <div className="flex flex-col sm:flex-row gap-4">
+          {/* Global Search */}
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+            <input
+              type="text"
+              value={globalSearch}
+              onChange={(e) => setGlobalSearch(e.target.value)}
+              placeholder="Search classes..."
+              className="input pl-10"
+            />
+          </div>
+          
+          {/* Filter Toggle */}
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`btn-secondary flex items-center gap-2 ${hasActiveFilters ? 'ring-2 ring-brand-300' : ''}`}
+          >
+            <Filter className="w-4 h-4" />
+            Filters
+            {hasActiveFilters && (
+              <span className="bg-brand-600 text-white text-xs px-1.5 py-0.5 rounded-full">
+                {[filterClient, filterTopic, filterDateFrom, filterDateTo].filter(Boolean).length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* Filter Panel */}
+        {showFilters && (
+          <div className="mt-4 pt-4 border-t border-slate-200">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Client</label>
+                <select
+                  value={filterClient}
+                  onChange={(e) => setFilterClient(e.target.value)}
+                  className="input py-2"
+                >
+                  <option value="">All Clients</option>
+                  {CLIENTS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Topic</label>
+                <select
+                  value={filterTopic}
+                  onChange={(e) => setFilterTopic(e.target.value)}
+                  className="input py-2"
+                >
+                  <option value="">All Topics</option>
+                  {TOPICS.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">From Date</label>
+                <input
+                  type="date"
+                  value={filterDateFrom}
+                  onChange={(e) => setFilterDateFrom(e.target.value)}
+                  className="input py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">To Date</label>
+                <input
+                  type="date"
+                  value={filterDateTo}
+                  onChange={(e) => setFilterDateTo(e.target.value)}
+                  className="input py-2"
+                  min={filterDateFrom}
+                />
+              </div>
+            </div>
+            {hasActiveFilters && (
+              <button
+                onClick={clearFilters}
+                className="mt-4 text-sm text-brand-600 font-medium hover:text-brand-700"
+              >
+                Clear all filters
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
       <div className="flex gap-2 mb-6">
         {['upcoming', 'past', 'cancelled'].map((filter) => (
           <button
@@ -173,7 +314,12 @@ function TrainingTracker() {
 
       <div className="card">
         <div className="p-5 border-b border-slate-200">
-          <h2 className="font-display font-semibold text-slate-800 capitalize">{activeFilter} Classes</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="font-display font-semibold text-slate-800 capitalize">{activeFilter} Classes</h2>
+            {hasActiveFilters && (
+              <span className="text-sm text-slate-500">{getFilteredSessions().length} results</span>
+            )}
+          </div>
         </div>
 
         {loading ? (
@@ -221,8 +367,12 @@ function TrainingTracker() {
         ) : (
           <div className="p-12 text-center">
             <BarChart3 className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-            <h3 className="font-display font-semibold text-slate-800 mb-2">No classes found</h3>
-            {activeFilter === 'upcoming' && (
+            <h3 className="font-display font-semibold text-slate-800 mb-2">
+              {hasActiveFilters ? 'No classes match your filters' : 'No classes found'}
+            </h3>
+            {hasActiveFilters ? (
+              <button onClick={clearFilters} className="btn-secondary mt-4">Clear Filters</button>
+            ) : activeFilter === 'upcoming' && (
               <button onClick={() => setShowScheduleModal(true)} className="btn-primary mt-4">Schedule Class</button>
             )}
           </div>
@@ -483,7 +633,6 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
         status: 'enrolled' 
       })
       
-      // Send enrollment notification
       await sendNotification(user.email, user.full_name, 'enrollment', {
         learnerName: user.full_name,
         sessionTopic: getTopicLabel(sessionData.topic),
@@ -509,7 +658,6 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
         status: 'enrolled' 
       })
 
-      // Send enrollment notification if email provided
       if (manualEmail) {
         await sendNotification(manualEmail, manualName || 'Learner', 'enrollment', {
           learnerName: manualName || 'Learner',
@@ -549,7 +697,6 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
         is_private: isPrivate 
       })
 
-      // Send notification
       if (isPrivate) {
         const recipient = learners.find(l => l.learner_id === selectedRecipient)
         if (recipient?.learner_email) {
@@ -561,7 +708,6 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
           }, sessionData.id)
         }
       } else {
-        // Notify all learners with emails
         const recipients = learners.filter(l => l.learner_email).map(l => ({
           email: l.learner_email,
           name: l.learner_name || 'Learner'
@@ -585,7 +731,6 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
     
     await supabase.from('training_sessions').update({ status: 'cancelled' }).eq('id', sessionData.id)
 
-    // Notify all learners
     const recipients = learners.filter(l => l.learner_email).map(l => ({
       email: l.learner_email,
       name: l.learner_name || 'Learner'
@@ -607,7 +752,6 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
     try {
       const certificateNumber = `CERT-${format(new Date(), 'yyyyMMdd')}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
       
-      // Save to database
       const { error } = await supabase.from('certificates').insert({
         session_id: sessionData.id,
         learner_id: learner.learner_id,
@@ -618,7 +762,6 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
 
       if (error) throw error
 
-      // Generate and download PDF
       downloadCertificate({
         learnerName: learner.learner_name || learner.learner_email || 'Learner',
         sessionTopic: getTopicLabel(sessionData.topic),
@@ -628,7 +771,6 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
         clientName: getClientLabel(sessionData.client)
       })
 
-      // Send notification
       if (learner.learner_email) {
         await sendNotification(learner.learner_email, learner.learner_name || 'Learner', 'certificate', {
           learnerName: learner.learner_name || 'Learner',
@@ -730,7 +872,6 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
             </div>
           </div>
           <div className="flex gap-2 flex-wrap">
-            {/* Export dropdown */}
             <div className="relative" ref={exportMenuRef}>
               <button 
                 onClick={() => setShowExportMenu(!showExportMenu)} 
@@ -951,7 +1092,7 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
               <h2 className="font-display font-semibold text-slate-800 mb-4">Certificates</h2>
               <p className="text-slate-500 text-sm mb-6">Issue completion certificates to learners</p>
 
-              {learners.filter(l => l.learner_id && l.status === 'attended').length > 0 ? (
+              {learners.filter(l => l.learner_id).length > 0 ? (
                 <div className="space-y-3">
                   {learners.filter(l => l.learner_id).map((learner) => {
                     const hasIssuedCert = hasCertificate(learner.learner_id)
@@ -992,8 +1133,8 @@ function TrainingDetailView({ session, profile, onBack, onUpdate }) {
               ) : (
                 <div className="text-center py-8 text-slate-500">
                   <Award className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                  <p>No learners eligible for certificates</p>
-                  <p className="text-sm">Mark learners as "Attended" to issue certificates</p>
+                  <p>No learners with accounts enrolled</p>
+                  <p className="text-sm">Certificates can only be issued to learners with user accounts</p>
                 </div>
               )}
             </div>
@@ -1223,7 +1364,6 @@ function ImportModal({ sessionId, sessionTopic, sessionDate, trainerName, onClos
             status: 'enrolled'
           })
 
-          // Send notification if email provided
           if (learner.email) {
             await sendNotification(learner.email, learner.name || 'Learner', 'enrollment', {
               learnerName: learner.name || 'Learner',
