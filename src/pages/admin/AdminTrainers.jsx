@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
-import { Users, Search, Mail, Calendar, Award, ArrowLeft } from 'lucide-react'
+import { Users, Search, Mail, ArrowLeft } from 'lucide-react'
 import { format } from 'date-fns'
 import { Link } from 'react-router-dom'
 
@@ -24,7 +24,6 @@ function AdminTrainers() {
 
       if (error) throw error
 
-      // Fetch session counts for each trainer
       const trainersWithStats = await Promise.all(
         (data || []).map(async (trainer) => {
           const { count: sessionCount } = await supabase
@@ -73,7 +72,6 @@ function AdminTrainers() {
         </div>
       </div>
 
-      {/* Search */}
       <div className="card p-4 mb-6">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
@@ -87,7 +85,6 @@ function AdminTrainers() {
         </div>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-3 gap-4 mb-6">
         <div className="card p-4 text-center">
           <p className="text-2xl font-bold text-slate-800">{trainers.length}</p>
@@ -107,7 +104,6 @@ function AdminTrainers() {
         </div>
       </div>
 
-      {/* Trainers List */}
       <div className="card">
         <div className="p-5 border-b border-slate-200">
           <h2 className="font-display font-semibold text-slate-800">
