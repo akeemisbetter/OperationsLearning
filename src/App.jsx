@@ -2,7 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './context/AuthContext'
 
 // Layouts
-import MainLayout from './components/MainLayout'
+import MainLayout from './layouts/MainLayout'
 
 // Auth pages
 import Login from './pages/auth/Login'
