@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { Outlet, NavLink, useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import {
   LayoutDashboard,
@@ -17,7 +17,8 @@ import {
   User,
   Users,
   MessageCircle,
-  Shield
+  Shield,
+  Settings
 } from 'lucide-react'
 
 function MainLayout() {
@@ -26,6 +27,7 @@ function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [trainerMenuOpen, setTrainerMenuOpen] = useState(true)
   const [adminMenuOpen, setAdminMenuOpen] = useState(true)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
 
   const handleSignOut = async () => {
     await signOut()
@@ -254,31 +256,55 @@ function MainLayout() {
             )}
           </nav>
 
-          {/* User profile */}
+          {/* User profile with dropdown */}
           <div className="p-4 border-t border-slate-100">
-            <div className="flex items-center gap-3 px-3 py-2">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                isAdmin 
-                  ? 'bg-gradient-to-br from-purple-400 to-purple-600' 
-                  : 'bg-gradient-to-br from-brand-400 to-brand-600'
-              }`}>
-                <User className="w-5 h-5 text-white" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-800 truncate">
-                  {profile?.full_name || 'User'}
-                </p>
-                <p className={`text-xs capitalize ${isAdmin ? 'text-purple-600 font-medium' : 'text-slate-500'}`}>
-                  {profile?.role || 'Learner'}
-                </p>
-              </div>
+            <div className="relative">
               <button
-                onClick={handleSignOut}
-                className="p-2 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-700"
-                title="Sign out"
+                onClick={() => setUserMenuOpen(!userMenuOpen)}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-100 transition-colors"
               >
-                <LogOut className="w-5 h-5" />
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                  isAdmin 
+                    ? 'bg-gradient-to-br from-purple-400 to-purple-600' 
+                    : 'bg-gradient-to-br from-brand-400 to-brand-600'
+                }`}>
+                  <User className="w-5 h-5 text-white" />
+                </div>
+                <div className="flex-1 min-w-0 text-left">
+                  <p className="text-sm font-medium text-slate-800 truncate">
+                    {profile?.full_name || 'User'}
+                  </p>
+                  <p className={`text-xs capitalize ${isAdmin ? 'text-purple-600 font-medium' : 'text-slate-500'}`}>
+                    {profile?.role || 'Learner'}
+                  </p>
+                </div>
+                <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} />
               </button>
+
+              {/* Dropdown menu */}
+              {userMenuOpen && (
+                <div className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-xl shadow-lg border border-slate-200 py-2 z-50">
+                  <Link
+                    to="/profile"
+                    onClick={() => {
+                      setUserMenuOpen(false)
+                      setSidebarOpen(false)
+                    }}
+                    className="flex items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                  >
+                    <Settings className="w-4 h-4" />
+                    Profile Settings
+                  </Link>
+                  <hr className="my-2 border-slate-100" />
+                  <button
+                    onClick={handleSignOut}
+                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    Sign out
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
